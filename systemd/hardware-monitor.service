@@ -1,0 +1,20 @@
+[Unit]
+Description=Hardware Monitor Daemon (serial stats streamer)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/hwmon-daemon --serial /dev/ttyUSB0 --baud 115200 --interval 2000
+Restart=on-failure
+RestartSec=5
+# Nice low priority
+Nice=10
+# Optional: run as a dedicated user
+# User=hwmon
+# Group=hwmon
+
+# Give access to serial devices
+SupplementaryGroups=dialout
+
+[Install]
+WantedBy=multi-user.target
