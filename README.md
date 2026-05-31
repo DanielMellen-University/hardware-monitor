@@ -159,4 +159,4 @@ Pull requests welcome — especially for additional GPU vendors and better tempe
 
 ---
 
-**Status**: Functional v0.1 — ready for integration with custom hardware displays. (Test push from GitHub Desktop)
+**Status**: Functional v0.1 — ready for integration with custom hardware displays.
