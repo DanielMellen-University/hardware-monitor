@@ -149,10 +149,6 @@ For persistent configuration, modify the systemd unit or wrap it in a small shel
 - CRC16 instead of simple XOR (if needed)
 - Automatic serial device discovery
 
-## License
-
-MIT (or your preferred license).
-
 ## Contributing
 
 Pull requests welcome — especially for additional GPU vendors and better temperature heuristics.
