@@ -53,3 +53,22 @@ install(FILES systemd/hardware-monitor.service
 # Print summary
 message(STATUS "hardware-monitor-daemon configured")
 message(STATUS "  C++ standard: ${CMAKE_CXX_STANDARD}")
+
+# -----------------------------
+# Testing (doctest via FetchContent)
+# -----------------------------
+option(HWMON_BUILD_TESTS "Build unit and integration tests" ON)
+
+if(HWMON_BUILD_TESTS)
+    enable_testing()
+
+    include(FetchContent)
+    FetchContent_Declare(
+        doctest
+        GIT_REPOSITORY https://github.com/doctest/doctest.git
+        GIT_TAG        v2.4.11
+    )
+    FetchContent_MakeAvailable(doctest)
+
+    add_subdirectory(tests)
+endif()

@@ -44,4 +44,9 @@ private:
     bool initialized_ = false;
 };
 
+// Pure function exposed for testing and reuse.
+// Calculates CPU usage percentage (0-100) between two snapshots.
+uint8_t calculate_cpu_load_percent(const CpuTimes& prev, const CpuTimes& curr);
+
 } // namespace hwmon
+

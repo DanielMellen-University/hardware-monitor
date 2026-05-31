@@ -104,6 +104,10 @@ bool CpuMonitor::readProcStat(std::vector<CpuTimes>& out_times, uint8_t& /*overa
 }
 
 uint8_t CpuMonitor::calculateLoadPercent(const CpuTimes& prev, const CpuTimes& curr) {
+    return calculate_cpu_load_percent(prev, curr);
+}
+
+uint8_t calculate_cpu_load_percent(const CpuTimes& prev, const CpuTimes& curr) {
     auto prev_total = prev.user + prev.nice + prev.system + prev.idle + prev.iowait +
                       prev.irq + prev.softirq + prev.steal;
 
