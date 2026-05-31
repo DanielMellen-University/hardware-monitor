@@ -1,0 +1,32 @@
+# OS generated
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDEs
+.idea/
+.vscode/
+*.sublime-*
+
+# Build / output
+dist/
+build/
+out/
+
+# Logs & temp
+*.log
+logs/
+*.tmp
+temp/
+
+# Environment / secrets
+.env
+.env.local
+.venv/
+venv/
+node_modules/
+
+# Project-specific (add more as the project grows)
+data/
+*.db
