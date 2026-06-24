@@ -139,20 +139,6 @@ For persistent configuration, modify the systemd unit or wrap it in a small shel
 | AMD / Intel   | Not yet implemented                 | Contributions welcome (sysfs or rocm-smi)  |
 | Framerate     | File watcher                        | You control the source                     |
 
-## Design Notes / Future Work
-
-- Add AMD GPU support (via sysfs or `rocm-smi`)
-- Add Intel GPU support
-- Optional config file (TOML or simple key=value)
-- Prometheus / statsd exporter mode
-- Multiple GPU support (send data for GPU 0 and GPU 1)
-- CRC16 instead of simple XOR (if needed)
-- Automatic serial device discovery
-
-## Contributing
-
-Pull requests welcome — especially for additional GPU vendors and better temperature heuristics.
-
 ---
 
 **Status**: Functional v0.1 — ready for integration with custom hardware displays.
