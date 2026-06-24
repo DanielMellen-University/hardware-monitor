@@ -141,4 +141,4 @@ For persistent configuration, modify the systemd unit or wrap it in a small shel
 
 ---
 
-**Status**: Functional v0.1 — ready for integration with custom hardware displays.
+**Status**: Functional v0.1, ready for integration with custom hardware displays.
