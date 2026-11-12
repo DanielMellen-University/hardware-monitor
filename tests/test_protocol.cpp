@@ -3,6 +3,7 @@
 
 #include "protocol.hpp"
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 using namespace hwmon::protocol;
@@ -35,6 +36,11 @@ TEST_SUITE("Protocol Packet Builder") {
         auto pkt = buildPacket(55, cores, 38, 800, 40, 55, 90);
 
         CHECK(pkt[3] == 6);  // num_cores at offset 3
+    }
+
+    TEST_CASE("rejects core counts that cannot fit in the wire field") {
+        std::vector<uint8_t> cores(256, 0);
+        CHECK_THROWS_AS(buildPacket(0, cores, 0, 0, 0, 0, 0), std::length_error);
     }
 
     TEST_CASE("all scalar fields are placed correctly") {
