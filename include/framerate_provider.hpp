@@ -6,6 +6,8 @@
 #include <thread>
 #include <optional>
 #include <filesystem>
+#include <condition_variable>
+#include <mutex>
 
 namespace hwmon {
 
@@ -32,6 +34,8 @@ private:
     std::atomic<uint8_t> current_fps_{0};
     std::thread watcher_thread_;
     std::atomic<bool> running_{true};
+    std::mutex watcher_mutex_;
+    std::condition_variable watcher_cv_;
     std::filesystem::file_time_type last_write_time_{};
 };
 

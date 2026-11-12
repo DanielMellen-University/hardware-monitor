@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <thread>
 #include <chrono>
+#include <memory>
 
 namespace fs = std::filesystem;
 
@@ -74,5 +75,32 @@ TEST_SUITE("Framerate Provider") {
         hwmon::FramerateProvider provider("/tmp/nonexistent_hwmon_fps");
         provider.setFps(87);
         CHECK(provider.getFps() == 87);
+    }
+
+    TEST_CASE("destructor wakes the polling thread promptly") {
+        const fs::path tmp_dir = fs::temp_directory_path() / "hwmon_shutdown_test";
+        fs::create_directories(tmp_dir);
+        const fs::path fps_file = tmp_dir / "current_fps";
+        {
+            std::ofstream f(fps_file);
+            f << "42";
+        }
+        auto provider = std::make_unique<hwmon::FramerateProvider>(fps_file.string());
+
+        // Wait until the watcher has completed a poll, then give it time to start its
+        // 500 ms pause, so destruction has to interrupt an active wait.
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while (provider->getFps() != 42 && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        REQUIRE(provider->getFps() == 42);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        const auto start = std::chrono::steady_clock::now();
+        provider.reset();
+        const auto elapsed = std::chrono::steady_clock::now() - start;
+        CHECK(elapsed < std::chrono::milliseconds(250));
+
+        fs::remove_all(tmp_dir);
     }
 }

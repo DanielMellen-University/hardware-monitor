@@ -19,7 +19,13 @@ FramerateProvider::FramerateProvider(const std::string& file_path)
 }
 
 FramerateProvider::~FramerateProvider() {
-    running_ = false;
+    {
+        // Update the flag under the wait mutex so the watcher cannot miss the wakeup
+        // between checking the predicate and starting to wait.
+        std::lock_guard<std::mutex> lock(watcher_mutex_);
+        running_ = false;
+    }
+    watcher_cv_.notify_all();
     if (watcher_thread_.joinable()) {
         watcher_thread_.join();
     }
@@ -40,8 +46,11 @@ void FramerateProvider::watchLoop() {
             current_fps_.store(val);
         }
 
-        // Check every 500ms - cheap
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        // Check every 500ms, but allow shutdown to wake the watcher immediately.
+        std::unique_lock<std::mutex> lock(watcher_mutex_);
+        watcher_cv_.wait_for(lock, std::chrono::milliseconds(500), [this] {
+            return !running_.load();
+        });
     }
 }
 
