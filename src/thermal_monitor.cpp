@@ -33,7 +33,7 @@ void ThermalMonitor::scanSensors() {
             // Look for temp*_input files
             for (int i = 1; i <= 16; ++i) {
                 std::string input = base + "/temp" + std::to_string(i) + "_input";
-                if (!fs::exists(input)) break;
+                if (!fs::exists(input)) continue;
 
                 Sensor s;
                 s.temp_input_path = input;

@@ -66,4 +66,18 @@ TEST_SUITE("Thermal monitor discovery") {
         REQUIRE(result.has_value());
         CHECK(*result == 51);
     }
+
+    TEST_CASE("finds channels after a gap in hwmon numbering") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "k10temp\n");
+        writeFile(hwmon / "hwmon0" / "temp2_input", "61000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        const auto result = monitor.readCpuTempC();
+        REQUIRE(result.has_value());
+        CHECK(*result == 61);
+    }
 }
