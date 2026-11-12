@@ -129,4 +129,37 @@ TEST_SUITE("Protocol Packet Builder") {
         CHECK(static_cast<int8_t>(pkt[11]) == 127);
         CHECK(pkt[12] == 255);
     }
+
+    TEST_CASE("signed temperature bytes and both clock boundary bytes checksum correctly") {
+        auto pkt = buildPacket(0, {255}, -128, 0x80FF, 0, -128, 255);
+
+        REQUIRE(pkt.size() == 13);
+        CHECK(pkt[4] == 0);
+        CHECK(pkt[5] == 255);
+        CHECK(pkt[6] == 0x80);
+        CHECK(pkt[7] == 0xFF);
+        CHECK(pkt[8] == 0x80);
+        CHECK(pkt[9] == 0);
+        CHECK(pkt[10] == 0x80);
+        CHECK(pkt[11] == 255);
+        uint8_t expected = 0;
+        for (size_t i = 0; i + 1 < pkt.size(); ++i) expected ^= pkt[i];
+        CHECK(pkt.back() == expected);
+    }
+
+    TEST_CASE("zero and maximum values are preserved in unsigned scalar fields") {
+        auto zero = buildPacket(0, {0}, 0, 0, 0, 0, 0);
+        auto maximum = buildPacket(255, {255}, 127, 65535, 255, 127, 255);
+
+        CHECK(zero[4] == 0);
+        CHECK(zero[5] == 0);
+        CHECK(zero[9] == 0);
+        CHECK(zero[11] == 0);
+        CHECK(maximum[4] == 255);
+        CHECK(maximum[5] == 255);
+        CHECK(maximum[7] == 255);
+        CHECK(maximum[8] == 255);
+        CHECK(maximum[9] == 255);
+        CHECK(maximum[11] == 255);
+    }
 }
