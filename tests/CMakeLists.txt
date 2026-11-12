@@ -6,6 +6,7 @@ add_executable(hwmon_tests
     test_cpu_calc.cpp
     test_framerate.cpp
     test_serial_port.cpp
+    test_thermal_monitor.cpp
     # test_smoke.cpp          # optional real-hardware smoke tests
 )
 

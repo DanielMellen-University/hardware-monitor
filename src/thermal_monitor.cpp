@@ -4,12 +4,14 @@
 #include <fstream>
 #include <algorithm>
 #include <iostream>
+#include <utility>
 
 namespace fs = std::filesystem;
 
 namespace hwmon {
 
-ThermalMonitor::ThermalMonitor() = default;
+ThermalMonitor::ThermalMonitor(std::string hwmon_root, std::string thermal_root)
+    : hwmon_root_(std::move(hwmon_root)), thermal_root_(std::move(thermal_root)) {}
 
 void ThermalMonitor::scanSensors() {
     if (scanned_) return;
@@ -17,9 +19,8 @@ void ThermalMonitor::scanSensors() {
     cpu_sensors_.clear();
 
     // 1. hwmon sensors (preferred)
-    const std::string hwmon_root = "/sys/class/hwmon";
-    if (fs::exists(hwmon_root)) {
-        for (const auto& entry : fs::directory_iterator(hwmon_root)) {
+    if (fs::exists(hwmon_root_)) {
+        for (const auto& entry : fs::directory_iterator(hwmon_root_)) {
             if (!entry.is_directory()) continue;
 
             std::string base = entry.path().string();
@@ -47,9 +48,8 @@ void ThermalMonitor::scanSensors() {
     }
 
     // 2. Thermal zones fallback
-    const std::string tz_root = "/sys/class/thermal";
-    if (fs::exists(tz_root) && cpu_sensors_.empty()) {
-        for (const auto& entry : fs::directory_iterator(tz_root)) {
+    if (fs::exists(thermal_root_) && cpu_sensors_.empty()) {
+        for (const auto& entry : fs::directory_iterator(thermal_root_)) {
             if (!entry.is_directory()) continue;
             std::string dir = entry.path().string();
             if (dir.find("thermal_zone") == std::string::npos) continue;
@@ -78,8 +78,8 @@ void ThermalMonitor::scanSensors() {
     }
 
     // If still nothing, add any temp1_input from hwmon as last resort
-    if (cpu_sensors_.empty() && fs::exists(hwmon_root)) {
-        for (const auto& entry : fs::directory_iterator(hwmon_root)) {
+    if (cpu_sensors_.empty() && fs::exists(hwmon_root_)) {
+        for (const auto& entry : fs::directory_iterator(hwmon_root_)) {
             if (!entry.is_directory()) continue;
             std::string input = entry.path().string() + "/temp1_input";
             if (fs::exists(input)) {
