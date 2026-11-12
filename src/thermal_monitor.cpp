@@ -117,37 +117,35 @@ bool ThermalMonitor::looksLikeCpuSensor(const Sensor& s) {
     return false;
 }
 
-int ThermalMonitor::readTempFromPath(const std::string& path) const {
+std::optional<int> ThermalMonitor::readTempFromPath(const std::string& path) const {
     std::ifstream f(path);
-    if (!f) return -1;
+    if (!f) return std::nullopt;
 
-    int millideg = -1;
-    f >> millideg;
+    int millideg = 0;
+    if (!(f >> millideg)) return std::nullopt;
     return millideg;
 }
 
 std::optional<int> ThermalMonitor::readCpuTempC() {
     scanSensors();
 
-    int best_temp = -1000;
+    std::optional<int> best_temp;
 
     for (const auto& s : cpu_sensors_) {
-        int millideg = readTempFromPath(s.temp_input_path);
-        if (millideg > 0) {
-            int c = millideg / 1000;
-            if (c > best_temp) best_temp = c;
-        }
+        const auto millideg = readTempFromPath(s.temp_input_path);
+        if (!millideg) continue;
+
+        const int celsius = *millideg / 1000;
+        if (!best_temp || celsius > *best_temp) best_temp = celsius;
     }
 
-    if (best_temp <= -1000) {
-        return std::nullopt;
-    }
+    if (!best_temp) return std::nullopt;
 
     // Clamp for signed char protocol field
-    if (best_temp > 127) best_temp = 127;
-    if (best_temp < -127) best_temp = -127;
+    if (*best_temp > 127) best_temp = 127;
+    if (*best_temp < -127) best_temp = -127;
 
-    return best_temp;
+    return *best_temp;
 }
 
 } // namespace hwmon

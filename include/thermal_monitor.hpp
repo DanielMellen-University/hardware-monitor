@@ -32,7 +32,7 @@ private:
     bool scanned_ = false;
 
     void scanSensors();
-    int readTempFromPath(const std::string& path) const; // returns millidegrees or -1
+    std::optional<int> readTempFromPath(const std::string& path) const;
     static bool looksLikeCpuSensor(const Sensor& s);
 };
 

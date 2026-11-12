@@ -80,4 +80,18 @@ TEST_SUITE("Thermal monitor discovery") {
         REQUIRE(result.has_value());
         CHECK(*result == 61);
     }
+
+    TEST_CASE("preserves sub-zero sensor readings") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "-5000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        const auto result = monitor.readCpuTempC();
+        REQUIRE(result.has_value());
+        CHECK(*result == -5);
+    }
 }
