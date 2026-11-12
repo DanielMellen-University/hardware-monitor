@@ -107,6 +107,7 @@ You can update it from:
 - Any monitoring tool you already use
 
 The value is read every ~500 ms.
+The file must contain one integer (surrounding whitespace is allowed). Values below 0 become 0, values above 255 become 255, and an empty, malformed, or missing file reports 0 FPS.
 
 ## systemd Service (Recommended)
 

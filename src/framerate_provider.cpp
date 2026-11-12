@@ -40,10 +40,14 @@ void FramerateProvider::setFps(uint8_t fps) {
 }
 
 void FramerateProvider::watchLoop() {
+    // Only publish file results when they change, so a value set with setFps()
+    // stays in place until the file is created, rewritten or removed.
+    std::optional<uint8_t> last_file_value;
     while (running_) {
-        uint8_t val = readFromFile();
-        if (val != 0 || current_fps_.load() == 0) { // allow 0
-            current_fps_.store(val);
+        const auto val = readFromFile();
+        if (val != last_file_value) {
+            current_fps_.store(val.value_or(0));
+            last_file_value = val;
         }
 
         // Check every 500ms, but allow shutdown to wake the watcher immediately.
@@ -54,16 +58,16 @@ void FramerateProvider::watchLoop() {
     }
 }
 
-uint8_t FramerateProvider::readFromFile() const {
+std::optional<uint8_t> FramerateProvider::readFromFile() const {
     std::ifstream f(watch_path_);
-    if (!f) return 0;
+    if (!f) return std::nullopt;
 
     int val = 0;
     f >> val;
-    if (!f) return 0;
+    if (!f) return std::nullopt;
 
     char trailing = 0;
-    if (f >> trailing) return 0;
+    if (f >> trailing) return std::nullopt;
 
     if (val < 0) val = 0;
     if (val > 255) val = 255;
