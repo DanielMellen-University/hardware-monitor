@@ -3,10 +3,7 @@
 #include <dlfcn.h>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <iostream>
-#include <sstream>
-#include <algorithm>
 
 namespace hwmon {
 
@@ -177,22 +174,7 @@ GpuStats GpuMonitor::readViaNvidiaSmi() {
 
     char buffer[256] = {0};
     if (fgets(buffer, sizeof(buffer), pipe)) {
-        // Parse CSV: clock, util, temp
-        std::string line(buffer);
-        // Remove trailing newline etc.
-        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-        line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
-
-        std::replace(line.begin(), line.end(), ',', ' ');
-        std::istringstream iss(line);
-
-        unsigned int clock = 0, util = 0, temp = 0;
-        if (iss >> clock >> util >> temp) {
-            stats.clock_mhz = (clock > 65535) ? 65535 : static_cast<uint16_t>(clock);
-            stats.utilization = (util > 100) ? 100 : static_cast<uint8_t>(util);
-            stats.temperature_c = (temp > 127) ? 127 : static_cast<int8_t>(temp);
-            stats.available = true;
-        }
+        parse_nvidia_smi_line(buffer, stats);
     }
 
     pclose(pipe);

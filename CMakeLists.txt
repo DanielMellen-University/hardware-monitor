@@ -22,6 +22,7 @@ add_executable(hwmon-daemon
     src/cpu_monitor.cpp
     src/thermal_monitor.cpp
     src/gpu_monitor.cpp
+    src/gpu_parser.cpp
     src/serial_port.cpp
     src/framerate_provider.cpp
 )
