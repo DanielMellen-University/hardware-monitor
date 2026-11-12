@@ -5,7 +5,11 @@ add_executable(hwmon_tests
     test_protocol.cpp
     test_cpu_calc.cpp
     test_framerate.cpp
-    # test_smoke.cpp          # optional real-hardware smoke tests
+    test_serial_port.cpp
+    test_thermal_monitor.cpp
+    test_config.cpp
+    test_gpu_parser.cpp
+    test_smoke.cpp
 )
 
 find_package(Threads REQUIRED)
@@ -15,6 +19,13 @@ target_link_libraries(hwmon_tests
         doctest::doctest
         Threads::Threads
 )
+
+if(UNIX AND NOT APPLE)
+    find_library(UTIL_LIBRARY util)
+    if(UTIL_LIBRARY)
+        target_link_libraries(hwmon_tests PRIVATE ${UTIL_LIBRARY})
+    endif()
+endif()
 
 target_include_directories(hwmon_tests
     PRIVATE
@@ -28,6 +39,9 @@ target_sources(hwmon_tests
         ${CMAKE_SOURCE_DIR}/src/cpu_monitor.cpp
         ${CMAKE_SOURCE_DIR}/src/thermal_monitor.cpp
         ${CMAKE_SOURCE_DIR}/src/framerate_provider.cpp
+        ${CMAKE_SOURCE_DIR}/src/serial_port.cpp
+        ${CMAKE_SOURCE_DIR}/src/config.cpp
+        ${CMAKE_SOURCE_DIR}/src/gpu_parser.cpp
         test_smoke.cpp
 )
 
@@ -35,5 +49,4 @@ target_sources(hwmon_tests
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(hwmon_tests)
 
-# Also allow running the binary directly
-add_test(NAME hwmon_all_tests COMMAND hwmon_tests)
+# CTest registers each doctest case; running hwmon_tests directly executes the suite once.

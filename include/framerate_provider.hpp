@@ -6,6 +6,8 @@
 #include <thread>
 #include <optional>
 #include <filesystem>
+#include <condition_variable>
+#include <mutex>
 
 namespace hwmon {
 
@@ -20,18 +22,21 @@ public:
     uint8_t getFps() const;
 
     // Allows manually setting FPS (useful for testing or when file mechanism not used).
+    // The value is kept until the watched file's parsed contents change.
     void setFps(uint8_t fps);
 
     const std::string& getWatchPath() const { return watch_path_; }
 
 private:
     void watchLoop();
-    uint8_t readFromFile() const;
+    std::optional<uint8_t> readFromFile() const;
 
     std::string watch_path_;
     std::atomic<uint8_t> current_fps_{0};
     std::thread watcher_thread_;
     std::atomic<bool> running_{true};
+    std::mutex watcher_mutex_;
+    std::condition_variable watcher_cv_;
     std::filesystem::file_time_type last_write_time_{};
 };
 

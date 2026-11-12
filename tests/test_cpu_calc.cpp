@@ -1,10 +1,106 @@
 #include <doctest/doctest.h>
 
+#include <limits>
+#include <filesystem>
+#include <fstream>
+#include <cstdlib>
+
 #include "cpu_monitor.hpp"
 
 using hwmon::CpuTimes;
 
+namespace {
+
+class CpuStatFile {
+public:
+    CpuStatFile() {
+        char pattern[] = "/tmp/hwmon-cpu-test-XXXXXX";
+        if (char* created = mkdtemp(pattern)) path_ = created;
+    }
+    ~CpuStatFile() {
+        if (!path_.empty()) std::filesystem::remove_all(path_);
+    }
+    bool write(const std::string& contents) const {
+        std::ofstream file(path_ / "stat");
+        file << contents;
+        return file.good();
+    }
+    std::string path() const { return (path_ / "stat").string(); }
+    bool valid() const { return !path_.empty(); }
+
+private:
+    std::filesystem::path path_;
+};
+
+} // namespace
+
 TEST_SUITE("CPU Load Calculation") {
+
+    TEST_CASE("parses aggregate and numbered CPU rows with optional counters") {
+        CpuTimes aggregate{99, 99, 99, 99, 99, 99, 99, 99};
+        REQUIRE(hwmon::parse_cpu_stat_line("cpu 10 2 3 40", aggregate));
+        CHECK(aggregate.user == 10);
+        CHECK(aggregate.nice == 2);
+        CHECK(aggregate.system == 3);
+        CHECK(aggregate.idle == 40);
+        CHECK(aggregate.iowait == 0);
+        CHECK(aggregate.steal == 0);
+
+        CpuTimes core{};
+        REQUIRE(hwmon::parse_cpu_stat_line("cpu12 1 2 3 4 5 6 7 8", core));
+        CHECK(core.iowait == 5);
+        CHECK(core.irq == 6);
+        CHECK(core.softirq == 7);
+        CHECK(core.steal == 8);
+    }
+
+    TEST_CASE("CPU snapshots need an aggregate row and at least one core") {
+        CpuStatFile snapshot;
+        REQUIRE(snapshot.valid());
+        REQUIRE(snapshot.write("cpu 10 0 5 100\n"));
+        hwmon::CpuMonitor aggregate_only(snapshot.path());
+        CHECK_FALSE(aggregate_only.initialize());
+
+        REQUIRE(snapshot.write("\nmeminfo 1\n"));
+        hwmon::CpuMonitor malformed(snapshot.path());
+        CHECK_FALSE(malformed.initialize());
+
+        REQUIRE(snapshot.write(""));
+        hwmon::CpuMonitor empty(snapshot.path());
+        CHECK_FALSE(empty.initialize());
+    }
+
+    TEST_CASE("CPU topology changes rebase once and resize synthetic core loads") {
+        CpuStatFile snapshot;
+        REQUIRE(snapshot.valid());
+        REQUIRE(snapshot.write("cpu 100 0 20 300\ncpu0 50 0 10 150\ncpu1 50 0 10 150\n"));
+        hwmon::CpuMonitor monitor(snapshot.path());
+        REQUIRE(monitor.initialize());
+        CHECK(monitor.getCoreCount() == 2);
+
+        REQUIRE(snapshot.write("cpu 110 0 22 330\ncpu0 54 0 11 165\ncpu1 53 0 11 165\ncpu2 3 0 0 8\n"));
+        uint8_t overall = 99;
+        std::vector<uint8_t> per_core;
+        REQUIRE(monitor.getLoads(overall, per_core));
+        CHECK(overall == 0);
+        CHECK(monitor.getCoreCount() == 3);
+        REQUIRE(per_core.size() == 3);
+        CHECK(per_core == std::vector<uint8_t>{0, 0, 0});
+
+        REQUIRE(snapshot.write("cpu 120 0 24 360\ncpu0 58 0 12 180\ncpu1 56 0 12 180\ncpu2 4 0 0 9\n"));
+        // The next sample is measured against the rebased three-core snapshot.
+        REQUIRE(monitor.getLoads(overall, per_core));
+        CHECK(overall == 28);
+        CHECK(per_core == std::vector<uint8_t>{25, 21, 50});
+    }
+
+    TEST_CASE("rejects malformed CPU row labels and counters") {
+        CpuTimes parsed{};
+        CHECK_FALSE(hwmon::parse_cpu_stat_line("cpufoo 1 2 3 4", parsed));
+        CHECK_FALSE(hwmon::parse_cpu_stat_line("cpu0 1 2 invalid 4", parsed));
+        CHECK_FALSE(hwmon::parse_cpu_stat_line("cpu 1 2 3 4 18446744073709551616", parsed));
+        CHECK_FALSE(hwmon::parse_cpu_stat_line("cpu 1 2 3 4 5 6 bad", parsed));
+    }
 
     TEST_CASE("idle system produces 0% load") {
         // Only idle + iowait increase. All busy counters stay exactly the same.
@@ -36,6 +132,25 @@ TEST_SUITE("CPU Load Calculation") {
         CpuTimes same{500, 10, 20, 1000, 5, 1, 2, 0};
         uint8_t load = hwmon::calculate_cpu_load_percent(same, same);
         CHECK(load == 0);
+    }
+
+    TEST_CASE("handles counters decreasing after a CPU reset") {
+        // user drops while idle grows, so the unsigned busy delta would wrap
+        // and report a fully loaded CPU instead of an unknown sample.
+        CpuTimes prev{1000, 0, 0, 1000, 0, 0, 0, 0};
+        CpuTimes curr{900, 0, 0, 1300, 0, 0, 0, 0};
+
+        CHECK(hwmon::calculate_cpu_load_percent(prev, curr) == 0);
+    }
+
+    TEST_CASE("calculates load when aggregate counter sums exceed uint64 range") {
+        // The busy and idle deltas are each UINT64_MAX, so their sum does not fit
+        // in 64 bits and wrapped arithmetic cannot recover the real 50% split.
+        const uint64_t max = std::numeric_limits<uint64_t>::max();
+        CpuTimes prev{0, 0, 0, 0, 0, 0, 0, 0};
+        CpuTimes curr{max, 0, 0, max, 0, 0, 0, 0};
+
+        CHECK(hwmon::calculate_cpu_load_percent(prev, curr) == 50);
     }
 
     TEST_CASE("ignores steal time correctly in calculation") {

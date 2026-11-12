@@ -3,10 +3,8 @@
 #include <dlfcn.h>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <iostream>
-#include <sstream>
-#include <algorithm>
+#include <sys/wait.h>
 
 namespace hwmon {
 
@@ -171,31 +169,17 @@ GpuStats GpuMonitor::readViaNvidiaSmi() {
     // Use nvidia-smi query (works even without NVML symbols in some cases)
     FILE* pipe = popen(
         "nvidia-smi --query-gpu=clocks.current.graphics,utilization.gpu,temperature.gpu "
-        "--format=csv,noheader,nounits 2>/dev/null | head -1", "r");
+        "--format=csv,noheader,nounits 2>/dev/null", "r");
 
     if (!pipe) return stats;
 
-    char buffer[256] = {0};
-    if (fgets(buffer, sizeof(buffer), pipe)) {
-        // Parse CSV: clock, util, temp
-        std::string line(buffer);
-        // Remove trailing newline etc.
-        line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
-        line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+    char buffer[256] = {};
+    std::string output;
+    while (fgets(buffer, sizeof(buffer), pipe)) output += buffer;
 
-        std::replace(line.begin(), line.end(), ',', ' ');
-        std::istringstream iss(line);
-
-        unsigned int clock = 0, util = 0, temp = 0;
-        if (iss >> clock >> util >> temp) {
-            stats.clock_mhz = (clock > 65535) ? 65535 : static_cast<uint16_t>(clock);
-            stats.utilization = (util > 100) ? 100 : static_cast<uint8_t>(util);
-            stats.temperature_c = (temp > 127) ? 127 : static_cast<int8_t>(temp);
-            stats.available = true;
-        }
-    }
-
-    pclose(pipe);
+    const int status = pclose(pipe);
+    const bool succeeded = status != -1 && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    parse_nvidia_smi_result(output, succeeded, stats);
     return stats;
 }
 

@@ -11,7 +11,9 @@ namespace hwmon {
 // Tries multiple common sources (hwmon + thermal zones).
 class ThermalMonitor {
 public:
-    ThermalMonitor();
+    explicit ThermalMonitor(
+        std::string hwmon_root = "/sys/class/hwmon",
+        std::string thermal_root = "/sys/class/thermal");
 
     // Returns temperature in °C or std::nullopt if nothing usable found.
     // The value is clamped to fit in signed char range for the protocol.
@@ -25,10 +27,12 @@ private:
     };
 
     std::vector<Sensor> cpu_sensors_;
+    std::string hwmon_root_;
+    std::string thermal_root_;
     bool scanned_ = false;
 
     void scanSensors();
-    int readTempFromPath(const std::string& path) const; // returns millidegrees or -1
+    std::optional<int> readTempFromPath(const std::string& path) const;
     static bool looksLikeCpuSensor(const Sensor& s);
 };
 

@@ -38,4 +38,8 @@ private:
     GpuStats readViaNvidiaSmi();   // fallback using popen
 };
 
+// Parses one nvidia-smi CSV row: graphics clock, utilization, temperature.
+bool parse_nvidia_smi_line(const std::string& line, GpuStats& stats);
+bool parse_nvidia_smi_result(const std::string& output, bool command_succeeded, GpuStats& stats);
+
 } // namespace hwmon

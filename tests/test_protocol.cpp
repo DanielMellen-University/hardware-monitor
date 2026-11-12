@@ -3,6 +3,7 @@
 
 #include "protocol.hpp"
 #include <cstdint>
+#include <stdexcept>
 #include <vector>
 
 using namespace hwmon::protocol;
@@ -30,11 +31,33 @@ TEST_SUITE("Protocol Packet Builder") {
         CHECK(pkt12.size() == 12 + 12); // 24 bytes
     }
 
+    TEST_CASE("zero-core packets retain a valid fixed-field layout") {
+        auto pkt = buildPacket(42, {}, -1, 0x1234, 56, -2, 78);
+
+        REQUIRE(pkt.size() == 12);
+        CHECK(pkt[3] == 0);
+        CHECK(pkt[4] == 42);
+        CHECK(static_cast<int8_t>(pkt[5]) == -1);
+        CHECK(pkt[6] == 0x34);
+        CHECK(pkt[7] == 0x12);
+        CHECK(pkt[8] == 56);
+        CHECK(static_cast<int8_t>(pkt[9]) == -2);
+        CHECK(pkt[10] == 78);
+        uint8_t checksum = 0;
+        for (size_t i = 0; i + 1 < pkt.size(); ++i) checksum ^= pkt[i];
+        CHECK(pkt.back() == checksum);
+    }
+
     TEST_CASE("num_cores field matches input vector size") {
         std::vector<uint8_t> cores{5, 10, 15, 20, 25, 30};
         auto pkt = buildPacket(55, cores, 38, 800, 40, 55, 90);
 
         CHECK(pkt[3] == 6);  // num_cores at offset 3
+    }
+
+    TEST_CASE("rejects core counts that cannot fit in the wire field") {
+        std::vector<uint8_t> cores(256, 0);
+        CHECK_THROWS_AS(buildPacket(0, cores, 0, 0, 0, 0, 0), std::length_error);
     }
 
     TEST_CASE("all scalar fields are placed correctly") {
@@ -105,5 +128,38 @@ TEST_SUITE("Protocol Packet Builder") {
         CHECK(pkt[10] == 100);
         CHECK(static_cast<int8_t>(pkt[11]) == 127);
         CHECK(pkt[12] == 255);
+    }
+
+    TEST_CASE("signed temperature bytes and both clock boundary bytes checksum correctly") {
+        auto pkt = buildPacket(0, {255}, -128, 0x80FF, 0, -128, 255);
+
+        REQUIRE(pkt.size() == 13);
+        CHECK(pkt[4] == 0);
+        CHECK(pkt[5] == 255);
+        CHECK(pkt[6] == 0x80);
+        CHECK(pkt[7] == 0xFF);
+        CHECK(pkt[8] == 0x80);
+        CHECK(pkt[9] == 0);
+        CHECK(pkt[10] == 0x80);
+        CHECK(pkt[11] == 255);
+        uint8_t expected = 0;
+        for (size_t i = 0; i + 1 < pkt.size(); ++i) expected ^= pkt[i];
+        CHECK(pkt.back() == expected);
+    }
+
+    TEST_CASE("zero and maximum values are preserved in unsigned scalar fields") {
+        auto zero = buildPacket(0, {0}, 0, 0, 0, 0, 0);
+        auto maximum = buildPacket(255, {255}, 127, 65535, 255, 127, 255);
+
+        CHECK(zero[4] == 0);
+        CHECK(zero[5] == 0);
+        CHECK(zero[9] == 0);
+        CHECK(zero[11] == 0);
+        CHECK(maximum[4] == 255);
+        CHECK(maximum[5] == 255);
+        CHECK(maximum[7] == 255);
+        CHECK(maximum[8] == 255);
+        CHECK(maximum[9] == 255);
+        CHECK(maximum[11] == 255);
     }
 }

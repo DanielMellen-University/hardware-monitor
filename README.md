@@ -29,14 +29,14 @@ Lightweight C++ daemon that streams real-time hardware statistics over a serial 
 | num_cores          | 1      | uint8         | Number of logical CPU cores              |
 | overall_cpu        | 1      | uint8         | 0–100 %                                  |
 | per_core_cpu       | N      | uint8[N]      | One byte per core (0–100)                |
-| cpu_temp           | 1      | int8          | °C (or 0/-127 if unavailable)            |
+| cpu_temp           | 1      | int8          | °C; daemon sends 0 when unavailable       |
 | gpu_clock          | 2      | uint16 LE     | MHz                                      |
 | gpu_util           | 1      | uint8         | 0–100 %                                  |
-| gpu_temp           | 1      | int8          | °C                                       |
+| gpu_temp           | 1      | int8          | °C; daemon sends 0 when unavailable       |
 | fps                | 1      | uint8         | 0–255                                    |
 | checksum           | 1      | uint8         | XOR of all bytes before it               |
 
-**Total size** = `12 + num_cores` bytes.
+**Total size** = `12 + num_cores` bytes. The protocol stores `num_cores` in one byte, so packets support at most 255 per-core values.
 
 **Checksum calculation**: XOR of every byte from the first sync byte up to (but **not** including) the checksum byte.
 
@@ -60,26 +60,37 @@ if (readByte() == 0xAA && readByte() == 0x55) {
 ## Building
 
 ```bash
-cd Documents/GitHub/hardware-monitor
-
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
+cmake -S . -B build
+cmake --build build -j$(nproc)
 
 # Optional: install
-sudo make install
+sudo cmake --install build
 ```
 
 Binary: `build/hwmon-daemon`
+
+## Testing
+
+Tests use doctest 2.4.11 through CMake FetchContent. With doctest available locally and network access disabled, configure with its source directory, then build and run CTest:
+
+```bash
+cmake -S . -B build \
+  -DFETCHCONTENT_SOURCE_DIR_DOCTEST=/path/to/doctest-2.4.11 \
+  -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+cmake --build build -j$(nproc)
+(cd build && ctest --output-on-failure)
+```
+
+CTest lists and runs each test case once. To run the complete suite directly, use `build/tests/hwmon_tests`.
 
 ## Running Manually
 
 ```bash
 # Default: /dev/ttyUSB0 @ 115200
-./hwmon-daemon
+./build/hwmon-daemon
 
 # Custom device + faster updates
-./hwmon-daemon --serial /dev/ttyACM0 --baud 230400 --interval 1000
+./build/hwmon-daemon --serial /dev/ttyACM0 --baud 230400 --interval 1000
 ```
 
 ## Updating Framerate (FPS)
@@ -125,7 +136,9 @@ journalctl -u hardware-monitor -f
 
 ## Configuration
 
-All options are available via command-line flags (see `--help`).
+All options are available via command-line flags (see `--help`). The default serial device is `/dev/ttyUSB0`, the default baud rate is `115200`, and the default update interval is `2000` milliseconds. Supported baud rates are `9600`, `19200`, `38400`, `57600`, `115200`, `230400`, `460800`, and `921600`; the update interval must be a positive number of milliseconds.
+
+The FPS file path defaults to `/run/hwmon-daemon/current_fps`. It must contain one integer with optional surrounding whitespace; values are clamped to `0`–`255`, and missing, empty, or malformed contents report `0` FPS.
 
 For persistent configuration, modify the systemd unit or wrap it in a small shell script.
 

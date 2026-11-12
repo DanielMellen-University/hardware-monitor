@@ -1,5 +1,6 @@
 #include "protocol.hpp"
 #include <cstddef>
+#include <stdexcept>
 
 namespace hwmon {
 namespace protocol {
@@ -13,6 +14,9 @@ std::vector<uint8_t> buildPacket(
     int8_t gpu_temp_c,
     uint8_t fps)
 {
+    if (per_core_cpu.size() > UINT8_MAX) {
+        throw std::length_error("per-core CPU count exceeds the protocol limit of 255");
+    }
     const uint8_t num_cores = static_cast<uint8_t>(per_core_cpu.size());
 
     std::vector<uint8_t> pkt;
