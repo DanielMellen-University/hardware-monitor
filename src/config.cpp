@@ -46,7 +46,9 @@ ConfigParseResult parseArgs(int argc, char* argv[], Config& config, std::string&
 
     config = Config{};
     error.clear();
-    optind = 1;
+    // optind = 0 makes GNU getopt fully reinitialize, including the position inside
+    // a grouped short option such as -hx left over from an earlier early return.
+    optind = 0;
     const int previous_opterr = opterr;
     opterr = 0;
 

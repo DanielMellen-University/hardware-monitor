@@ -77,4 +77,15 @@ TEST_SUITE("Command line configuration") {
         std::string error;
         CHECK(parse({"hwmon-daemon", "--help"}, config, error) == hwmon::ConfigParseResult::help);
     }
+
+    TEST_CASE("a parse that stops inside grouped short options does not leak into the next parse") {
+        hwmon::Config config;
+        std::string error;
+        REQUIRE(parse({"hwmon-daemon", "-hx"}, config, error) == hwmon::ConfigParseResult::help);
+
+        CHECK(parse({"hwmon-daemon", "-s", "/dev/ttyACM0"}, config, error) ==
+              hwmon::ConfigParseResult::success);
+        CHECK(error.empty());
+        CHECK(config.serial_device == "/dev/ttyACM0");
+    }
 }
