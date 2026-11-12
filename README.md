@@ -78,7 +78,7 @@ cmake -S . -B build \
   -DFETCHCONTENT_SOURCE_DIR_DOCTEST=/path/to/doctest-2.4.11 \
   -DFETCHCONTENT_FULLY_DISCONNECTED=ON
 cmake --build build -j$(nproc)
-ctest --test-dir build --output-on-failure
+(cd build && ctest --output-on-failure)
 ```
 
 CTest lists and runs each test case once. To run the complete suite directly, use `build/tests/hwmon_tests`.
