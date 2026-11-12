@@ -16,6 +16,11 @@ SerialPort::~SerialPort() {
 bool SerialPort::open(const std::string& device, int baud_rate) {
     close();
 
+    if (baudToSpeed(baud_rate) == 0) {
+        last_error_ = "Unsupported baud rate: " + std::to_string(baud_rate);
+        return false;
+    }
+
     fd_ = ::open(device.c_str(), O_WRONLY | O_NOCTTY | O_SYNC);
     if (fd_ < 0) {
         last_error_ = "Failed to open " + device + ": " + std::strerror(errno);
@@ -87,7 +92,7 @@ int SerialPort::baudToSpeed(int baud_rate) const {
         case 230400: return B230400;
         case 460800: return B460800;
         case 921600: return B921600;
-        default:     return B115200;
+        default:     return 0;
     }
 }
 

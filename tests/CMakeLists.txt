@@ -5,6 +5,7 @@ add_executable(hwmon_tests
     test_protocol.cpp
     test_cpu_calc.cpp
     test_framerate.cpp
+    test_serial_port.cpp
     # test_smoke.cpp          # optional real-hardware smoke tests
 )
 
@@ -28,6 +29,7 @@ target_sources(hwmon_tests
         ${CMAKE_SOURCE_DIR}/src/cpu_monitor.cpp
         ${CMAKE_SOURCE_DIR}/src/thermal_monitor.cpp
         ${CMAKE_SOURCE_DIR}/src/framerate_provider.cpp
+        ${CMAKE_SOURCE_DIR}/src/serial_port.cpp
         test_smoke.cpp
 )
 
