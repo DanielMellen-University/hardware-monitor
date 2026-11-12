@@ -53,6 +53,23 @@ TEST_SUITE("Framerate Provider") {
         fs::remove_all(tmp_dir);
     }
 
+    TEST_CASE("rejects trailing text instead of accepting a numeric prefix") {
+        fs::path tmp_dir = fs::temp_directory_path() / "hwmon_fps_invalid_test";
+        fs::create_directories(tmp_dir);
+        fs::path fps_file = tmp_dir / "current_fps";
+        {
+            std::ofstream f(fps_file);
+            f << "144fps";
+        }
+
+        {
+            hwmon::FramerateProvider provider(fps_file.string());
+            std::this_thread::sleep_for(std::chrono::milliseconds(600));
+            CHECK(provider.getFps() == 0);
+        }
+        fs::remove_all(tmp_dir);
+    }
+
     TEST_CASE("manual setFps works") {
         hwmon::FramerateProvider provider("/tmp/nonexistent_hwmon_fps");
         provider.setFps(87);

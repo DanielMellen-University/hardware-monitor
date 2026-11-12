@@ -51,6 +51,11 @@ uint8_t FramerateProvider::readFromFile() const {
 
     int val = 0;
     f >> val;
+    if (!f) return 0;
+
+    char trailing = 0;
+    if (f >> trailing) return 0;
+
     if (val < 0) val = 0;
     if (val > 255) val = 255;
     return static_cast<uint8_t>(val);
