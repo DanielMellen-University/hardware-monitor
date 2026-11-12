@@ -31,6 +31,23 @@ TEST_SUITE("Protocol Packet Builder") {
         CHECK(pkt12.size() == 12 + 12); // 24 bytes
     }
 
+    TEST_CASE("zero-core packets retain a valid fixed-field layout") {
+        auto pkt = buildPacket(42, {}, -1, 0x1234, 56, -2, 78);
+
+        REQUIRE(pkt.size() == 12);
+        CHECK(pkt[3] == 0);
+        CHECK(pkt[4] == 42);
+        CHECK(static_cast<int8_t>(pkt[5]) == -1);
+        CHECK(pkt[6] == 0x34);
+        CHECK(pkt[7] == 0x12);
+        CHECK(pkt[8] == 56);
+        CHECK(static_cast<int8_t>(pkt[9]) == -2);
+        CHECK(pkt[10] == 78);
+        uint8_t checksum = 0;
+        for (size_t i = 0; i + 1 < pkt.size(); ++i) checksum ^= pkt[i];
+        CHECK(pkt.back() == checksum);
+    }
+
     TEST_CASE("num_cores field matches input vector size") {
         std::vector<uint8_t> cores{5, 10, 15, 20, 25, 30};
         auto pkt = buildPacket(55, cores, 38, 800, 40, 55, 90);
