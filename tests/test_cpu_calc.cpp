@@ -6,6 +6,30 @@ using hwmon::CpuTimes;
 
 TEST_SUITE("CPU Load Calculation") {
 
+    TEST_CASE("parses aggregate and numbered CPU rows with optional counters") {
+        CpuTimes aggregate{99, 99, 99, 99, 99, 99, 99, 99};
+        REQUIRE(hwmon::parse_cpu_stat_line("cpu 10 2 3 40", aggregate));
+        CHECK(aggregate.user == 10);
+        CHECK(aggregate.nice == 2);
+        CHECK(aggregate.system == 3);
+        CHECK(aggregate.idle == 40);
+        CHECK(aggregate.iowait == 0);
+        CHECK(aggregate.steal == 0);
+
+        CpuTimes core{};
+        REQUIRE(hwmon::parse_cpu_stat_line("cpu12 1 2 3 4 5 6 7 8", core));
+        CHECK(core.iowait == 5);
+        CHECK(core.irq == 6);
+        CHECK(core.softirq == 7);
+        CHECK(core.steal == 8);
+    }
+
+    TEST_CASE("rejects malformed CPU row labels and counters") {
+        CpuTimes parsed{};
+        CHECK_FALSE(hwmon::parse_cpu_stat_line("cpufoo 1 2 3 4", parsed));
+        CHECK_FALSE(hwmon::parse_cpu_stat_line("cpu0 1 2 invalid 4", parsed));
+    }
+
     TEST_CASE("idle system produces 0% load") {
         // Only idle + iowait increase. All busy counters stay exactly the same.
         CpuTimes prev{1200, 80, 350, 9500, 180, 15, 25, 8};

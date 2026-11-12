@@ -5,24 +5,39 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <cctype>
+#include <algorithm>
 
 namespace hwmon {
 
-namespace {
-
-bool parseCpuLine(const std::string& line, CpuTimes& times) {
+bool parse_cpu_stat_line(const std::string& line, CpuTimes& times) {
+    times = {};
     std::istringstream iss(line);
     std::string cpu_label;
-    iss >> cpu_label;
-
-    if (!(iss >> times.user >> times.nice >> times.system >> times.idle >>
-               times.iowait >> times.irq >> times.softirq >> times.steal)) {
+    if (!(iss >> cpu_label) || cpu_label.rfind("cpu", 0) != 0) {
         return false;
+    }
+    if (cpu_label != "cpu" &&
+        !std::all_of(cpu_label.begin() + 3, cpu_label.end(),
+                     [](unsigned char ch) { return std::isdigit(ch) != 0; })) {
+        return false;
+    }
+
+    if (!(iss >> times.user >> times.nice >> times.system >> times.idle)) {
+        return false;
+    }
+
+    uint64_t* optional_fields[] = {
+        &times.iowait, &times.irq, &times.softirq, &times.steal
+    };
+    for (uint64_t* field : optional_fields) {
+        if (!(iss >> *field)) {
+            if (iss.eof()) break;
+            return false;
+        }
     }
     return true;
 }
-
-} // anonymous namespace
 
 CpuMonitor::CpuMonitor() = default;
 
@@ -95,7 +110,7 @@ bool CpuMonitor::readProcStat(std::vector<CpuTimes>& out_times, uint8_t& /*overa
         }
 
         CpuTimes t{};
-        if (parseCpuLine(line, t)) {
+        if (parse_cpu_stat_line(line, t)) {
             out_times.push_back(t);
         }
     }

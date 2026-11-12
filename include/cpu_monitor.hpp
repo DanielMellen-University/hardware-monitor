@@ -48,5 +48,8 @@ private:
 // Calculates CPU usage percentage (0-100) between two snapshots.
 uint8_t calculate_cpu_load_percent(const CpuTimes& prev, const CpuTimes& curr);
 
+// Parses a Linux /proc/stat CPU row. Missing trailing counters are treated as zero.
+bool parse_cpu_stat_line(const std::string& line, CpuTimes& times);
+
 } // namespace hwmon
 
