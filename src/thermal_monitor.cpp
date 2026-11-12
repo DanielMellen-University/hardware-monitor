@@ -18,6 +18,7 @@ void ThermalMonitor::scanSensors() {
     scanned_ = true;
     cpu_sensors_.clear();
 
+    try {
     // 1. hwmon sensors (preferred)
     if (fs::exists(hwmon_root_)) {
         for (const auto& entry : fs::directory_iterator(hwmon_root_)) {
@@ -77,17 +78,9 @@ void ThermalMonitor::scanSensors() {
         }
     }
 
-    // If still nothing, add any temp1_input from hwmon as last resort
-    if (cpu_sensors_.empty() && fs::exists(hwmon_root_)) {
-        for (const auto& entry : fs::directory_iterator(hwmon_root_)) {
-            if (!entry.is_directory()) continue;
-            std::string input = entry.path().string() + "/temp1_input";
-            if (fs::exists(input)) {
-                Sensor s{input, "", ""};
-                cpu_sensors_.push_back(s);
-                break; // only one fallback
-            }
-        }
+    } catch (const fs::filesystem_error&) {
+        // sysfs entries can disappear between enumeration and inspection.
+        // Keep any candidates already discovered; individual reads are retried later.
     }
 }
 
@@ -99,9 +92,11 @@ bool ThermalMonitor::looksLikeCpuSensor(const Sensor& s) {
     }
 
     std::string lower_name = s.name;
-    std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(), ::tolower);
+    std::transform(lower_name.begin(), lower_name.end(), lower_name.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     std::string lower_label = label;
-    std::transform(lower_label.begin(), lower_label.end(), lower_label.begin(), ::tolower);
+    std::transform(lower_label.begin(), lower_label.end(), lower_label.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
 
     // Very common patterns
     if (lower_name.find("coretemp") != std::string::npos) return true;
@@ -123,6 +118,8 @@ std::optional<int> ThermalMonitor::readTempFromPath(const std::string& path) con
 
     int millideg = 0;
     if (!(f >> millideg)) return std::nullopt;
+    char trailing = 0;
+    if (f >> trailing) return std::nullopt;
     return millideg;
 }
 

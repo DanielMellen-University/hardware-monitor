@@ -67,6 +67,80 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK(*result == 51);
     }
 
+    TEST_CASE("uses a CPU label when a generic hwmon name is present") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "acme_sensor\n");
+        writeFile(hwmon / "hwmon0" / "temp1_label", "Package id 0\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "47000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        const auto result = monitor.readCpuTempC();
+        REQUIRE(result.has_value());
+        CHECK(*result == 47);
+    }
+
+    TEST_CASE("does not select unrelated hwmon devices or thermal zones") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "nvme\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "61000\n");
+        writeFile(thermal / "thermal_zone0" / "type", "battery\n");
+        writeFile(thermal / "thermal_zone0" / "temp", "39000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK_FALSE(monitor.readCpuTempC().has_value());
+    }
+
+    TEST_CASE("malformed, trailing, and disappeared readings are unavailable") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        const fs::path input = hwmon / "hwmon0" / "temp1_input";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(input, "not-a-temperature\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK_FALSE(monitor.readCpuTempC().has_value());
+        writeFile(input, "42000 junk\n");
+        CHECK_FALSE(monitor.readCpuTempC().has_value());
+        fs::remove(input);
+        CHECK_FALSE(monitor.readCpuTempC().has_value());
+    }
+
+    TEST_CASE("sensor scans tolerate an invalid or disappearing root") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path invalid_root = temp.path() / "hwmon-file";
+        writeFile(invalid_root, "not a directory");
+        const fs::path thermal = temp.path() / "thermal";
+
+        hwmon::ThermalMonitor monitor(invalid_root.string(), thermal.string());
+        CHECK_FALSE(monitor.readCpuTempC().has_value());
+    }
+
+    TEST_CASE("clamps readings to signed protocol temperature limits") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        const fs::path input = hwmon / "hwmon0" / "temp1_input";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        writeFile(input, "250000\n");
+        REQUIRE(monitor.readCpuTempC().has_value());
+        CHECK(*monitor.readCpuTempC() == 127);
+        writeFile(input, "-200000\n");
+        REQUIRE(monitor.readCpuTempC().has_value());
+        CHECK(*monitor.readCpuTempC() == -127);
+    }
+
     TEST_CASE("finds channels after a gap in hwmon numbering") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
