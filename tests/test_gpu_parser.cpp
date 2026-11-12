@@ -29,4 +29,18 @@ TEST_SUITE("nvidia-smi parser") {
         CHECK_FALSE(hwmon::parse_nvidia_smi_line("1000, 80x, 40", stats));
         CHECK_FALSE(hwmon::parse_nvidia_smi_line("1000, 80, 40, extra", stats));
     }
+
+    TEST_CASE("command failures and empty output produce unavailable GPU data") {
+        hwmon::GpuStats stats;
+        CHECK_FALSE(hwmon::parse_nvidia_smi_result("1000, 80, 40\n", false, stats));
+        CHECK_FALSE(stats.available);
+        CHECK_FALSE(hwmon::parse_nvidia_smi_result("", true, stats));
+        CHECK_FALSE(stats.available);
+        CHECK_FALSE(hwmon::parse_nvidia_smi_result("not a CSV row\n", true, stats));
+        CHECK_FALSE(stats.available);
+
+        REQUIRE(hwmon::parse_nvidia_smi_result("1000, 80, 40\n", true, stats));
+        CHECK(stats.available);
+        CHECK(stats.clock_mhz == 1000);
+    }
 }

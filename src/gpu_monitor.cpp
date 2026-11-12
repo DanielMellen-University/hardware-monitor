@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <sys/wait.h>
 
 namespace hwmon {
 
@@ -168,16 +169,17 @@ GpuStats GpuMonitor::readViaNvidiaSmi() {
     // Use nvidia-smi query (works even without NVML symbols in some cases)
     FILE* pipe = popen(
         "nvidia-smi --query-gpu=clocks.current.graphics,utilization.gpu,temperature.gpu "
-        "--format=csv,noheader,nounits 2>/dev/null | head -1", "r");
+        "--format=csv,noheader,nounits 2>/dev/null", "r");
 
     if (!pipe) return stats;
 
-    char buffer[256] = {0};
-    if (fgets(buffer, sizeof(buffer), pipe)) {
-        parse_nvidia_smi_line(buffer, stats);
-    }
+    char buffer[256] = {};
+    std::string output;
+    while (fgets(buffer, sizeof(buffer), pipe)) output += buffer;
 
-    pclose(pipe);
+    const int status = pclose(pipe);
+    const bool succeeded = status != -1 && WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    parse_nvidia_smi_result(output, succeeded, stats);
     return stats;
 }
 

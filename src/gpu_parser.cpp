@@ -53,4 +53,11 @@ bool parse_nvidia_smi_line(const std::string& line, GpuStats& stats) {
     return true;
 }
 
+bool parse_nvidia_smi_result(const std::string& output, bool command_succeeded, GpuStats& stats) {
+    stats = GpuStats{};
+    if (!command_succeeded || output.empty()) return false;
+    const size_t newline = output.find_first_of("\r\n");
+    return parse_nvidia_smi_line(output.substr(0, newline), stats);
+}
+
 } // namespace hwmon
