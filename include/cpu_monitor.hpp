@@ -20,7 +20,7 @@ struct CpuTimes {
 
 class CpuMonitor {
 public:
-    CpuMonitor();
+    explicit CpuMonitor(std::string proc_stat_path = "/proc/stat");
 
     // Must be called at least once before getLoads().
     bool initialize();
@@ -42,6 +42,7 @@ private:
     CpuTimes prev_overall_;
     size_t core_count_ = 0;
     bool initialized_ = false;
+    std::string proc_stat_path_;
 };
 
 // Pure function exposed for testing and reuse.

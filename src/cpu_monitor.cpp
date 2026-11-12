@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cctype>
 #include <algorithm>
+#include <utility>
 
 namespace hwmon {
 
@@ -39,7 +40,8 @@ bool parse_cpu_stat_line(const std::string& line, CpuTimes& times) {
     return true;
 }
 
-CpuMonitor::CpuMonitor() = default;
+CpuMonitor::CpuMonitor(std::string proc_stat_path)
+    : proc_stat_path_(std::move(proc_stat_path)) {}
 
 bool CpuMonitor::initialize() {
     std::vector<CpuTimes> times;
@@ -75,9 +77,14 @@ bool CpuMonitor::getLoads(uint8_t& overall, std::vector<uint8_t>& per_core) {
     }
 
     if (curr_times.size() != prev_per_core_.size() + 1) {
-        // Core count changed (hotplug) - re-init
-        initialized_ = false;
-        return getLoads(overall, per_core);
+        // Rebase counters on the new topology. Loads are undefined for this
+        // transition sample, so report zero and calculate deltas next time.
+        core_count_ = curr_times.size() - 1;
+        prev_overall_ = curr_times[0];
+        prev_per_core_.assign(curr_times.begin() + 1, curr_times.end());
+        overall = 0;
+        per_core.assign(core_count_, 0);
+        return true;
     }
 
     // Overall
@@ -96,7 +103,7 @@ bool CpuMonitor::getLoads(uint8_t& overall, std::vector<uint8_t>& per_core) {
 }
 
 bool CpuMonitor::readProcStat(std::vector<CpuTimes>& out_times, uint8_t& /*overall_raw*/) {
-    std::ifstream file("/proc/stat");
+    std::ifstream file(proc_stat_path_);
     if (!file.is_open()) {
         return false;
     }

@@ -1,10 +1,38 @@
 #include <doctest/doctest.h>
 
 #include <limits>
+#include <filesystem>
+#include <fstream>
+#include <cstdlib>
 
 #include "cpu_monitor.hpp"
 
 using hwmon::CpuTimes;
+
+namespace {
+
+class CpuStatFile {
+public:
+    CpuStatFile() {
+        char pattern[] = "/tmp/hwmon-cpu-test-XXXXXX";
+        if (char* created = mkdtemp(pattern)) path_ = created;
+    }
+    ~CpuStatFile() {
+        if (!path_.empty()) std::filesystem::remove_all(path_);
+    }
+    bool write(const std::string& contents) const {
+        std::ofstream file(path_ / "stat");
+        file << contents;
+        return file.good();
+    }
+    std::string path() const { return (path_ / "stat").string(); }
+    bool valid() const { return !path_.empty(); }
+
+private:
+    std::filesystem::path path_;
+};
+
+} // namespace
 
 TEST_SUITE("CPU Load Calculation") {
 
@@ -24,6 +52,46 @@ TEST_SUITE("CPU Load Calculation") {
         CHECK(core.irq == 6);
         CHECK(core.softirq == 7);
         CHECK(core.steal == 8);
+    }
+
+    TEST_CASE("CPU snapshots need an aggregate row and at least one core") {
+        CpuStatFile snapshot;
+        REQUIRE(snapshot.valid());
+        REQUIRE(snapshot.write("cpu 10 0 5 100\n"));
+        hwmon::CpuMonitor aggregate_only(snapshot.path());
+        CHECK_FALSE(aggregate_only.initialize());
+
+        REQUIRE(snapshot.write("\nmeminfo 1\n"));
+        hwmon::CpuMonitor malformed(snapshot.path());
+        CHECK_FALSE(malformed.initialize());
+
+        REQUIRE(snapshot.write(""));
+        hwmon::CpuMonitor empty(snapshot.path());
+        CHECK_FALSE(empty.initialize());
+    }
+
+    TEST_CASE("CPU topology changes rebase once and resize synthetic core loads") {
+        CpuStatFile snapshot;
+        REQUIRE(snapshot.valid());
+        REQUIRE(snapshot.write("cpu 100 0 20 300\ncpu0 50 0 10 150\ncpu1 50 0 10 150\n"));
+        hwmon::CpuMonitor monitor(snapshot.path());
+        REQUIRE(monitor.initialize());
+        CHECK(monitor.getCoreCount() == 2);
+
+        REQUIRE(snapshot.write("cpu 110 0 22 330\ncpu0 54 0 11 165\ncpu1 53 0 11 165\ncpu2 3 0 0 8\n"));
+        uint8_t overall = 99;
+        std::vector<uint8_t> per_core;
+        REQUIRE(monitor.getLoads(overall, per_core));
+        CHECK(overall == 0);
+        CHECK(monitor.getCoreCount() == 3);
+        REQUIRE(per_core.size() == 3);
+        CHECK(per_core == std::vector<uint8_t>{0, 0, 0});
+
+        REQUIRE(snapshot.write("cpu 120 0 24 360\ncpu0 58 0 12 180\ncpu1 56 0 12 180\ncpu2 4 0 0 9\n"));
+        // The next sample is measured against the rebased three-core snapshot.
+        REQUIRE(monitor.getLoads(overall, per_core));
+        CHECK(overall == 28);
+        CHECK(per_core == std::vector<uint8_t>{25, 21, 50});
     }
 
     TEST_CASE("rejects malformed CPU row labels and counters") {
