@@ -108,6 +108,13 @@ uint8_t CpuMonitor::calculateLoadPercent(const CpuTimes& prev, const CpuTimes& c
 }
 
 uint8_t calculate_cpu_load_percent(const CpuTimes& prev, const CpuTimes& curr) {
+    if (curr.user < prev.user || curr.nice < prev.nice ||
+        curr.system < prev.system || curr.idle < prev.idle ||
+        curr.iowait < prev.iowait || curr.irq < prev.irq ||
+        curr.softirq < prev.softirq || curr.steal < prev.steal) {
+        return 0;
+    }
+
     auto prev_total = prev.user + prev.nice + prev.system + prev.idle + prev.iowait +
                       prev.irq + prev.softirq + prev.steal;
 

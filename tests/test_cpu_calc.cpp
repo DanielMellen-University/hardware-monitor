@@ -38,6 +38,15 @@ TEST_SUITE("CPU Load Calculation") {
         CHECK(load == 0);
     }
 
+    TEST_CASE("handles counters decreasing after a CPU reset") {
+        // user drops while idle grows, so the unsigned busy delta would wrap
+        // and report a fully loaded CPU instead of an unknown sample.
+        CpuTimes prev{1000, 0, 0, 1000, 0, 0, 0, 0};
+        CpuTimes curr{900, 0, 0, 1300, 0, 0, 0, 0};
+
+        CHECK(hwmon::calculate_cpu_load_percent(prev, curr) == 0);
+    }
+
     TEST_CASE("ignores steal time correctly in calculation") {
         CpuTimes prev{1000, 0, 200, 2000, 0, 0, 0, 50};
         CpuTimes curr{1100, 0, 250, 2050, 0, 0, 0, 150}; // steal increased a lot
