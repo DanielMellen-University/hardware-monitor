@@ -98,6 +98,8 @@ TEST_SUITE("CPU Load Calculation") {
         CpuTimes parsed{};
         CHECK_FALSE(hwmon::parse_cpu_stat_line("cpufoo 1 2 3 4", parsed));
         CHECK_FALSE(hwmon::parse_cpu_stat_line("cpu0 1 2 invalid 4", parsed));
+        CHECK_FALSE(hwmon::parse_cpu_stat_line("cpu 1 2 3 4 18446744073709551616", parsed));
+        CHECK_FALSE(hwmon::parse_cpu_stat_line("cpu 1 2 3 4 5 6 bad", parsed));
     }
 
     TEST_CASE("idle system produces 0% load") {

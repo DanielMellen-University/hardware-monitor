@@ -31,11 +31,13 @@ bool parse_cpu_stat_line(const std::string& line, CpuTimes& times) {
     uint64_t* optional_fields[] = {
         &times.iowait, &times.irq, &times.softirq, &times.steal
     };
+    for (uint64_t* field : optional_fields) *field = 0;
     for (uint64_t* field : optional_fields) {
-        if (!(iss >> *field)) {
-            if (iss.eof()) break;
-            return false;
-        }
+        // Stop only when the row has really ended; a value that is present but
+        // fails to convert (for example an overflow at the end of the line) is an error.
+        iss >> std::ws;
+        if (iss.eof()) break;
+        if (!(iss >> *field)) return false;
     }
     return true;
 }
