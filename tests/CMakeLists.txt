@@ -19,6 +19,13 @@ target_link_libraries(hwmon_tests
         Threads::Threads
 )
 
+if(UNIX AND NOT APPLE)
+    find_library(UTIL_LIBRARY util)
+    if(UTIL_LIBRARY)
+        target_link_libraries(hwmon_tests PRIVATE ${UTIL_LIBRARY})
+    endif()
+endif()
+
 target_include_directories(hwmon_tests
     PRIVATE
         ${CMAKE_SOURCE_DIR}/include
