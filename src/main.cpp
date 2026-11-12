@@ -4,6 +4,8 @@
 #include <thread>
 #include <csignal>
 #include <atomic>
+#include <cstdint>
+#include <stdexcept>
 
 #include "protocol.hpp"
 #include "config.hpp"
@@ -86,6 +88,11 @@ int main(int argc, char** argv) {
         return 1;
     }
     log("Detected " + std::to_string(cpu.getCoreCount()) + " CPU cores");
+    if (cpu.getCoreCount() > UINT8_MAX) {
+        log("ERROR: " + std::to_string(cpu.getCoreCount()) +
+            " CPU cores exceed the protocol limit of 255 per-core values");
+        return 1;
+    }
 
     ThermalMonitor thermal;
     GpuMonitor gpu;
@@ -93,6 +100,7 @@ int main(int argc, char** argv) {
 
     // Main loop
     auto last_send = std::chrono::steady_clock::now();
+    int exit_code = 0;
 
     while (g_running) {
         uint8_t overall_cpu = 0;
@@ -113,16 +121,23 @@ int main(int argc, char** argv) {
 
         uint8_t fps = fps_provider.getFps();
 
-        // Build and send packet
-        auto packet = protocol::buildPacket(
-            overall_cpu,
-            per_core,
-            cpu_temp,
-            gpu_clock,
-            gpu_util,
-            gpu_temp,
-            fps
-        );
+        // Build and send packet. The core count can still grow after a CPU hotplug.
+        std::vector<uint8_t> packet;
+        try {
+            packet = protocol::buildPacket(
+                overall_cpu,
+                per_core,
+                cpu_temp,
+                gpu_clock,
+                gpu_util,
+                gpu_temp,
+                fps
+            );
+        } catch (const std::length_error& e) {
+            log(std::string("ERROR: ") + e.what());
+            exit_code = 1;
+            break;
+        }
 
         if (serial.isOpen()) {
             ssize_t written = serial.write(packet);
@@ -155,5 +170,5 @@ int main(int argc, char** argv) {
 
     log("Shutting down gracefully...");
     serial.close();
-    return 0;
+    return exit_code;
 }
