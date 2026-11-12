@@ -81,6 +81,8 @@ cmake --build build -j$(nproc)
 ctest --test-dir build --output-on-failure
 ```
 
+CTest lists and runs each test case once. To run the complete suite directly, use `build/tests/hwmon_tests`.
+
 ## Running Manually
 
 ```bash

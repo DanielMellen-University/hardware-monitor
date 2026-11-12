@@ -9,7 +9,7 @@ add_executable(hwmon_tests
     test_thermal_monitor.cpp
     test_config.cpp
     test_gpu_parser.cpp
-    # test_smoke.cpp          # optional real-hardware smoke tests
+    test_smoke.cpp
 )
 
 find_package(Threads REQUIRED)
@@ -49,5 +49,4 @@ target_sources(hwmon_tests
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(hwmon_tests)
 
-# Also allow running the binary directly
-add_test(NAME hwmon_all_tests COMMAND hwmon_tests)
+# CTest registers each doctest case; running hwmon_tests directly executes the suite once.
