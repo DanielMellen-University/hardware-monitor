@@ -17,6 +17,7 @@ endif()
 # Main executable
 add_executable(hwmon-daemon
     src/main.cpp
+    src/config.cpp
     src/protocol.cpp
     src/cpu_monitor.cpp
     src/thermal_monitor.cpp

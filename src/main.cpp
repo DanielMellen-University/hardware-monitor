@@ -4,9 +4,9 @@
 #include <thread>
 #include <csignal>
 #include <atomic>
-#include <getopt.h>
 
 #include "protocol.hpp"
+#include "config.hpp"
 #include "serial_port.hpp"
 #include "cpu_monitor.hpp"
 #include "thermal_monitor.hpp"
@@ -42,41 +42,6 @@ void printUsage(const char* prog) {
         "\n";
 }
 
-struct Config {
-    std::string serial_device = "/dev/ttyUSB0";
-    int baud = 115200;
-    int interval_ms = 2000;
-    std::string fps_file = "/run/hwmon-daemon/current_fps";
-};
-
-Config parseArgs(int argc, char** argv) {
-    Config cfg;
-
-    static const struct option long_opts[] = {
-        {"serial",   required_argument, nullptr, 's'},
-        {"baud",     required_argument, nullptr, 'b'},
-        {"interval", required_argument, nullptr, 'i'},
-        {"fps-file", required_argument, nullptr, 'f'},
-        {"help",     no_argument,       nullptr, 'h'},
-        {nullptr, 0, nullptr, 0}
-    };
-
-    int c;
-    while ((c = getopt_long(argc, argv, "s:b:i:f:h", long_opts, nullptr)) != -1) {
-        switch (c) {
-            case 's': cfg.serial_device = optarg; break;
-            case 'b': cfg.baud = std::atoi(optarg); break;
-            case 'i': cfg.interval_ms = std::atoi(optarg); break;
-            case 'f': cfg.fps_file = optarg; break;
-            case 'h':
-            default:
-                printUsage(argv[0]);
-                std::exit(0);
-        }
-    }
-    return cfg;
-}
-
 void log(const std::string& msg) {
     auto now = std::chrono::system_clock::now();
     auto t = std::chrono::system_clock::to_time_t(now);
@@ -86,7 +51,17 @@ void log(const std::string& msg) {
 } // anonymous namespace
 
 int main(int argc, char** argv) {
-    Config cfg = parseArgs(argc, argv);
+    Config cfg;
+    std::string parse_error;
+    const ConfigParseResult parse_result = parseArgs(argc, argv, cfg, parse_error);
+    if (parse_result == ConfigParseResult::help) {
+        printUsage(argv[0]);
+        return 0;
+    }
+    if (parse_result == ConfigParseResult::error) {
+        std::cerr << "Error: " << parse_error << "\nTry --help for usage.\n";
+        return 2;
+    }
 
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
