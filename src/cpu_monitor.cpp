@@ -130,25 +130,20 @@ uint8_t calculate_cpu_load_percent(const CpuTimes& prev, const CpuTimes& curr) {
         return 0;
     }
 
-    auto prev_total = prev.user + prev.nice + prev.system + prev.idle + prev.iowait +
-                      prev.irq + prev.softirq + prev.steal;
-
-    auto curr_total = curr.user + curr.nice + curr.system + curr.idle + curr.iowait +
-                      curr.irq + curr.softirq + curr.steal;
-
-    auto prev_idle = prev.idle + prev.iowait;
-    auto curr_idle = curr.idle + curr.iowait;
-
-    uint64_t total_delta = curr_total - prev_total;
-    uint64_t idle_delta  = curr_idle  - prev_idle;
-
+    const uint64_t deltas[] = {
+        curr.user - prev.user, curr.nice - prev.nice,
+        curr.system - prev.system, curr.idle - prev.idle,
+        curr.iowait - prev.iowait, curr.irq - prev.irq,
+        curr.softirq - prev.softirq, curr.steal - prev.steal
+    };
+    long double total_delta = 0;
+    for (uint64_t delta : deltas) total_delta += static_cast<long double>(delta);
     if (total_delta == 0) return 0;
 
-    uint64_t used = total_delta - idle_delta;
-    // Avoid overflow / weird values
-    if (used > total_delta) used = total_delta;
-
-    int percent = static_cast<int>((used * 100ULL) / total_delta);
+    const long double idle_delta = static_cast<long double>(deltas[3]) +
+                                   static_cast<long double>(deltas[4]);
+    const long double used = total_delta - idle_delta;
+    int percent = static_cast<int>((used * 100.0L) / total_delta);
     if (percent < 0) percent = 0;
     if (percent > 100) percent = 100;
     return static_cast<uint8_t>(percent);

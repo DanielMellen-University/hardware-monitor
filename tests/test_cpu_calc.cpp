@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 
+#include <limits>
+
 #include "cpu_monitor.hpp"
 
 using hwmon::CpuTimes;
@@ -69,6 +71,16 @@ TEST_SUITE("CPU Load Calculation") {
         CpuTimes curr{900, 0, 0, 1300, 0, 0, 0, 0};
 
         CHECK(hwmon::calculate_cpu_load_percent(prev, curr) == 0);
+    }
+
+    TEST_CASE("calculates load when aggregate counter sums exceed uint64 range") {
+        // The busy and idle deltas are each UINT64_MAX, so their sum does not fit
+        // in 64 bits and wrapped arithmetic cannot recover the real 50% split.
+        const uint64_t max = std::numeric_limits<uint64_t>::max();
+        CpuTimes prev{0, 0, 0, 0, 0, 0, 0, 0};
+        CpuTimes curr{max, 0, 0, max, 0, 0, 0, 0};
+
+        CHECK(hwmon::calculate_cpu_load_percent(prev, curr) == 50);
     }
 
     TEST_CASE("ignores steal time correctly in calculation") {
