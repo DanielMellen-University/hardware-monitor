@@ -40,6 +40,22 @@ TEST_CASE("unsupported baud rates are reported without opening a device") {
     CHECK(serial.lastError() == "Unsupported baud rate: 12345");
 }
 
+TEST_CASE("missing device reports its open error and stays closed") {
+    hwmon::SerialPort serial;
+
+    CHECK_FALSE(serial.open("/tmp/hwmon-device-that-does-not-exist", 115200));
+    CHECK_FALSE(serial.isOpen());
+    CHECK(serial.lastError().find("Failed to open /tmp/hwmon-device-that-does-not-exist:") == 0);
+}
+
+TEST_CASE("writes while closed fail clearly") {
+    hwmon::SerialPort serial;
+    const std::vector<uint8_t> bytes{1};
+
+    CHECK(serial.write(bytes) == -1);
+    CHECK(serial.lastError() == "Serial port not open");
+}
+
 TEST_CASE("configures and writes bytes through a pseudo-terminal") {
     int master = -1;
     int slave = -1;
@@ -51,6 +67,7 @@ TEST_CASE("configures and writes bytes through a pseudo-terminal") {
 
     hwmon::SerialPort serial;
     REQUIRE(serial.open(slave_name, 115200));
+    CHECK(serial.write(nullptr, 0) == 0);
     const std::vector<uint8_t> bytes{0xAA, 0x55, 0x00, 0xFF};
     CHECK(serial.write(bytes) == static_cast<ssize_t>(bytes.size()));
 
@@ -70,4 +87,17 @@ TEST_CASE("configures and writes bytes through a pseudo-terminal") {
     CHECK((settings.c_cflag & PARENB) == 0);
     CHECK((settings.c_cflag & CSTOPB) == 0);
     CHECK(cfgetospeed(&settings) == B115200);
+}
+
+TEST_CASE("configuration failure preserves its cause and closes the device") {
+    char path[] = "/tmp/hwmon-serial-regular-file-XXXXXX";
+    FileDescriptor file_fd(::mkstemp(path));
+    REQUIRE(file_fd.get() >= 0);
+    file_fd.reset();
+
+    hwmon::SerialPort serial;
+    CHECK_FALSE(serial.open(path, 115200));
+    CHECK_FALSE(serial.isOpen());
+    CHECK(serial.lastError().find("tcgetattr failed:") == 0);
+    ::unlink(path);
 }

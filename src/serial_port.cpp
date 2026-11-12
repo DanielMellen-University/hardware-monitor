@@ -65,8 +65,14 @@ bool SerialPort::configure(int baud_rate) {
 
     // Baud rate
     speed_t speed = baudToSpeed(baud_rate);
-    cfsetispeed(&tty, speed);
-    cfsetospeed(&tty, speed);
+    if (cfsetispeed(&tty, speed) != 0) {
+        last_error_ = "cfsetispeed failed: " + std::string(std::strerror(errno));
+        return false;
+    }
+    if (cfsetospeed(&tty, speed) != 0) {
+        last_error_ = "cfsetospeed failed: " + std::string(std::strerror(errno));
+        return false;
+    }
 
     // Timeouts (we don't read, but be clean)
     tty.c_cc[VMIN]  = 0;
@@ -78,7 +84,10 @@ bool SerialPort::configure(int baud_rate) {
     }
 
     // Flush any garbage
-    tcflush(fd_, TCIOFLUSH);
+    if (tcflush(fd_, TCIOFLUSH) != 0) {
+        last_error_ = "tcflush failed: " + std::string(std::strerror(errno));
+        return false;
+    }
     return true;
 }
 
@@ -105,6 +114,7 @@ ssize_t SerialPort::write(const uint8_t* data, size_t len) {
         last_error_ = "Serial port not open";
         return -1;
     }
+    if (len == 0) return 0;
 
     ssize_t total = 0;
     while (total < static_cast<ssize_t>(len)) {
