@@ -60,6 +60,20 @@ TEST_SUITE("Protocol Packet Builder") {
         CHECK_THROWS_AS(buildPacket(0, cores, 0, 0, 0, 0, 0), std::length_error);
     }
 
+    TEST_CASE("supports the maximum 255 per-core values") {
+        const std::vector<uint8_t> cores(255, 42);
+        const auto packet = buildPacket(50, cores, 40, 1000, 30, 45, 60);
+
+        REQUIRE(packet.size() == 12 + 255);
+        CHECK(packet[3] == 255);
+        CHECK(packet[4] == 50);
+        CHECK(packet[5] == 42);
+        CHECK(packet[259] == 42);
+        uint8_t checksum = 0;
+        for (size_t i = 0; i + 1 < packet.size(); ++i) checksum ^= packet[i];
+        CHECK(packet.back() == checksum);
+    }
+
     TEST_CASE("all scalar fields are placed correctly") {
         std::vector<uint8_t> per_core = {99};
         auto pkt = buildPacket(88, per_core, -12, 0xABCD, 66, -5, 77);
