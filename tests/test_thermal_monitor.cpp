@@ -139,6 +139,24 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK(*result == 51);
     }
 
+    TEST_CASE("retries an incomplete scan when hwmon becomes available") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        writeFile(hwmon, "not a directory");
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(thermal / "thermal_zone0" / "type", "x86_pkg_temp\n");
+        writeFile(thermal / "thermal_zone0" / "temp", "51000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        REQUIRE(monitor.readCpuTempC() == 51);
+
+        fs::remove(hwmon);
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "63000\n");
+        CHECK(monitor.readCpuTempC() == 63);
+    }
+
     TEST_CASE("clamps readings to signed protocol temperature limits") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
