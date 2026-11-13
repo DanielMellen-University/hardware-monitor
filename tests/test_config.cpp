@@ -75,6 +75,18 @@ TEST_SUITE("Command line configuration") {
         CHECK(error == "Interval must be greater than zero");
     }
 
+    TEST_CASE("rejects overflowing baud and interval values") {
+        hwmon::Config config;
+        std::string error;
+        CHECK(parse({"hwmon-daemon", "--baud", "999999999999999999999"}, config, error) ==
+              hwmon::ConfigParseResult::error);
+        CHECK(error == "Invalid baud rate: 999999999999999999999");
+
+        CHECK(parse({"hwmon-daemon", "--interval", "999999999999999999999"}, config, error) ==
+              hwmon::ConfigParseResult::error);
+        CHECK(error == "Invalid interval: 999999999999999999999");
+    }
+
     TEST_CASE("rejects unsupported baud rates and unexpected arguments") {
         hwmon::Config config;
         std::string error;
