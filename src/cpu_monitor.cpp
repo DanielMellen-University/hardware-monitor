@@ -78,6 +78,12 @@ bool CpuMonitor::getLoads(uint8_t& overall, std::vector<uint8_t>& per_core) {
         return false;
     }
 
+    // A usable snapshot always has the aggregate row and at least one core.
+    // Do not let an incomplete sample trigger a topology rebase.
+    if (curr_times.size() < 2) {
+        return false;
+    }
+
     if (curr_times.size() != prev_per_core_.size() + 1) {
         // Rebase counters on the new topology. Loads are undefined for this
         // transition sample, so report zero and calculate deltas next time.

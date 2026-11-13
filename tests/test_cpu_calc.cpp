@@ -94,6 +94,21 @@ TEST_SUITE("CPU Load Calculation") {
         CHECK(per_core == std::vector<uint8_t>{25, 21, 50});
     }
 
+    TEST_CASE("rejects aggregate-only samples without losing the established core count") {
+        CpuStatFile snapshot;
+        REQUIRE(snapshot.valid());
+        REQUIRE(snapshot.write("cpu 100 0 20 300\ncpu0 50 0 10 150\n"));
+        hwmon::CpuMonitor monitor(snapshot.path());
+        REQUIRE(monitor.initialize());
+        REQUIRE(monitor.getCoreCount() == 1);
+
+        REQUIRE(snapshot.write("cpu 110 0 22 330\n"));
+        uint8_t overall = 0;
+        std::vector<uint8_t> per_core;
+        CHECK_FALSE(monitor.getLoads(overall, per_core));
+        CHECK(monitor.getCoreCount() == 1);
+    }
+
     TEST_CASE("rejects malformed CPU row labels and counters") {
         CpuTimes parsed{};
         CHECK_FALSE(hwmon::parse_cpu_stat_line("cpufoo 1 2 3 4", parsed));
