@@ -55,4 +55,15 @@ TEST_SUITE("nvidia-smi parser") {
         CHECK(stats.available);
         CHECK(stats.clock_mhz == 1000);
     }
+
+    TEST_CASE("result parsing uses the first GPU row") {
+        hwmon::GpuStats stats;
+        const std::string output = "1500, 40, 60\n900, 90, 80\n";
+
+        REQUIRE(hwmon::parse_nvidia_smi_result(output, true, stats));
+        CHECK(stats.available);
+        CHECK(stats.clock_mhz == 1500);
+        CHECK(stats.utilization == 40);
+        CHECK(stats.temperature_c == 60);
+    }
 }
