@@ -45,6 +45,22 @@ TEST_SUITE("Command line configuration") {
         CHECK(config.interval_ms == 2000);
     }
 
+    TEST_CASE("parses supported short option forms") {
+        hwmon::Config config;
+        std::string error;
+        const auto result = parse(
+            {"hwmon-daemon", "-s", "/dev/ttyACM1", "-b", "460800",
+             "-i", "750", "-f", "/tmp/hwmon-fps"},
+            config, error);
+
+        CHECK(result == hwmon::ConfigParseResult::success);
+        CHECK(config.serial_device == "/dev/ttyACM1");
+        CHECK(config.baud == 460800);
+        CHECK(config.interval_ms == 750);
+        CHECK(config.fps_file == "/tmp/hwmon-fps");
+        CHECK(error.empty());
+    }
+
     TEST_CASE("rejects malformed numeric values and nonpositive intervals") {
         hwmon::Config config;
         std::string error;
