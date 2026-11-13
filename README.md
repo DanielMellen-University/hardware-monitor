@@ -138,7 +138,7 @@ journalctl -u hardware-monitor -f
 
 All options are available via command-line flags (see `--help`). The default serial device is `/dev/ttyUSB0`, the default baud rate is `115200`, and the default update interval is `2000` milliseconds. Supported baud rates are `9600`, `19200`, `38400`, `57600`, `115200`, `230400`, `460800`, and `921600`; the update interval must be a positive number of milliseconds.
 
-The FPS file path defaults to `/run/hwmon-daemon/current_fps`. It must contain one integer with optional surrounding whitespace; values are clamped to `0`–`255`, and missing, empty, or malformed contents report `0` FPS.
+The FPS file path defaults to `/run/hwmon-daemon/current_fps`. It must contain one signed decimal integer with optional surrounding whitespace and no trailing text. Parseable values are clamped to `0`–`255`; missing, empty, malformed, or out-of-range integer contents report `0` FPS.
 
 For persistent configuration, modify the systemd unit or wrap it in a small shell script.
 
