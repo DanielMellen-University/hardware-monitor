@@ -15,73 +15,81 @@ ThermalMonitor::ThermalMonitor(std::string hwmon_root, std::string thermal_root)
 
 void ThermalMonitor::scanSensors() {
     if (scanned_) return;
-    scanned_ = true;
     cpu_sensors_.clear();
+    bool scan_complete = true;
 
-    try {
     // 1. hwmon sensors (preferred)
-    if (fs::exists(hwmon_root_)) {
-        for (const auto& entry : fs::directory_iterator(hwmon_root_)) {
-            if (!entry.is_directory()) continue;
+    try {
+        if (fs::exists(hwmon_root_)) {
+            for (const auto& entry : fs::directory_iterator(hwmon_root_)) {
+                if (!entry.is_directory()) continue;
 
-            std::string base = entry.path().string();
+                std::string base = entry.path().string();
 
-            // Read name
-            std::string name;
-            std::ifstream namef(base + "/name");
-            if (namef) std::getline(namef, name);
+                // Read name
+                std::string name;
+                std::ifstream namef(base + "/name");
+                if (namef) std::getline(namef, name);
 
-            // Look for temp*_input files
-            for (int i = 1; i <= 16; ++i) {
-                std::string input = base + "/temp" + std::to_string(i) + "_input";
-                if (!fs::exists(input)) continue;
+                // Look for temp*_input files
+                for (int i = 1; i <= 16; ++i) {
+                    std::string input = base + "/temp" + std::to_string(i) + "_input";
+                    if (!fs::exists(input)) continue;
 
-                Sensor s;
-                s.temp_input_path = input;
-                s.label_path = base + "/temp" + std::to_string(i) + "_label";
-                s.name = name;
+                    Sensor s;
+                    s.temp_input_path = input;
+                    s.label_path = base + "/temp" + std::to_string(i) + "_label";
+                    s.name = name;
 
-                if (looksLikeCpuSensor(s)) {
-                    cpu_sensors_.push_back(s);
+                    if (looksLikeCpuSensor(s)) {
+                        cpu_sensors_.push_back(s);
+                    }
                 }
             }
         }
+    } catch (const fs::filesystem_error&) {
+        // Keep searching the fallback source and retry discovery on the next read.
+        scan_complete = false;
     }
 
     // 2. Thermal zones fallback
-    if (fs::exists(thermal_root_) && cpu_sensors_.empty()) {
-        for (const auto& entry : fs::directory_iterator(thermal_root_)) {
-            if (!entry.is_directory()) continue;
-            std::string dir = entry.path().string();
-            if (dir.find("thermal_zone") == std::string::npos) continue;
+    if (cpu_sensors_.empty()) {
+        try {
+            if (fs::exists(thermal_root_)) {
+                for (const auto& entry : fs::directory_iterator(thermal_root_)) {
+                    if (!entry.is_directory()) continue;
+                    std::string dir = entry.path().string();
+                    if (dir.find("thermal_zone") == std::string::npos) continue;
 
-            std::string type_path = dir + "/type";
-            std::string temp_path = dir + "/temp";
+                    std::string type_path = dir + "/type";
+                    std::string temp_path = dir + "/temp";
 
-            if (!fs::exists(temp_path)) continue;
+                    if (!fs::exists(temp_path)) continue;
 
-            std::string type;
-            std::ifstream tf(type_path);
-            if (tf) std::getline(tf, type);
+                    std::string type;
+                    std::ifstream tf(type_path);
+                    if (tf) std::getline(tf, type);
 
-            // Common CPU-related types
-            if (type.find("cpu") != std::string::npos ||
-                type.find("x86_pkg") != std::string::npos ||
-                type.find("acpitz") != std::string::npos ||
-                type.find("coretemp") != std::string::npos) {
+                    // Common CPU-related types
+                    if (type.find("cpu") != std::string::npos ||
+                        type.find("x86_pkg") != std::string::npos ||
+                        type.find("acpitz") != std::string::npos ||
+                        type.find("coretemp") != std::string::npos) {
 
-                Sensor s;
-                s.temp_input_path = temp_path;
-                s.name = type;
-                cpu_sensors_.push_back(s);
+                        Sensor s;
+                        s.temp_input_path = temp_path;
+                        s.name = type;
+                        cpu_sensors_.push_back(s);
+                    }
+                }
             }
+        } catch (const fs::filesystem_error&) {
+            // Retain any fallback candidates found so far and retry next time.
+            scan_complete = false;
         }
     }
 
-    } catch (const fs::filesystem_error&) {
-        // sysfs entries can disappear between enumeration and inspection.
-        // Keep any candidates already discovered; individual reads are retried later.
-    }
+    scanned_ = scan_complete;
 }
 
 bool ThermalMonitor::looksLikeCpuSensor(const Sensor& s) {

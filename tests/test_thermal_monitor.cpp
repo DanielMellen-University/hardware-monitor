@@ -124,6 +124,21 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK_FALSE(monitor.readCpuTempC().has_value());
     }
 
+    TEST_CASE("falls back to a thermal zone when the hwmon root is not a directory") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon_file = temp.path() / "hwmon-file";
+        writeFile(hwmon_file, "not a directory");
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(thermal / "thermal_zone0" / "type", "x86_pkg_temp\n");
+        writeFile(thermal / "thermal_zone0" / "temp", "51000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon_file.string(), thermal.string());
+        const auto result = monitor.readCpuTempC();
+        REQUIRE(result.has_value());
+        CHECK(*result == 51);
+    }
+
     TEST_CASE("clamps readings to signed protocol temperature limits") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
