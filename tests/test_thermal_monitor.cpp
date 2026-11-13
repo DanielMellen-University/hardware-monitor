@@ -53,6 +53,19 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK(*result == 42);
     }
 
+    TEST_CASE("reports the hottest reading among CPU sensors") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "42000\n");
+        writeFile(hwmon / "hwmon0" / "temp2_input", "67000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK(monitor.readCpuTempC() == 67);
+    }
+
     TEST_CASE("uses a CPU thermal zone when no hwmon CPU sensor exists") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
