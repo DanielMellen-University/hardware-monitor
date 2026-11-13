@@ -76,6 +76,16 @@ TEST_SUITE("Framerate Provider") {
 
     }
 
+    TEST_CASE("accepts a leading plus sign and surrounding whitespace") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path fps_file = temp.path() / "current_fps";
+        writeFile(fps_file, "  \t+144 \n");
+
+        hwmon::FramerateProvider provider(fps_file.string());
+        CHECK(waitForFps(provider, 144));
+    }
+
     TEST_CASE("clamps out-of-range values") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
