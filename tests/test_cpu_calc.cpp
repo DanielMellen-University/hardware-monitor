@@ -68,6 +68,10 @@ TEST_SUITE("CPU Load Calculation") {
         REQUIRE(snapshot.write(""));
         hwmon::CpuMonitor empty(snapshot.path());
         CHECK_FALSE(empty.initialize());
+
+        REQUIRE(snapshot.write("cpu0 10 0 5 100\ncpu1 10 0 5 100\n"));
+        hwmon::CpuMonitor numbered_only(snapshot.path());
+        CHECK_FALSE(numbered_only.initialize());
     }
 
     TEST_CASE("retries CPU initialization when proc stat becomes available") {

@@ -124,10 +124,16 @@ bool CpuMonitor::readProcStat(std::vector<CpuTimes>& out_times, uint8_t& /*overa
             break; // cpu lines are first
         }
 
-        CpuTimes t{};
-        if (parse_cpu_stat_line(line, t)) {
-            out_times.push_back(t);
+        std::istringstream label_stream(line);
+        std::string cpu_label;
+        if (!(label_stream >> cpu_label) ||
+            (out_times.empty() ? cpu_label != "cpu" : cpu_label == "cpu")) {
+            return false;
         }
+
+        CpuTimes t{};
+        if (!parse_cpu_stat_line(line, t)) return false;
+        out_times.push_back(t);
     }
 
     return !out_times.empty();
