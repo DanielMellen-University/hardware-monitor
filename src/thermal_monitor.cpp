@@ -32,14 +32,28 @@ void ThermalMonitor::scanSensors() {
                 std::ifstream namef(base + "/name");
                 if (namef) std::getline(namef, name);
 
-                // Look for temp*_input files
-                for (int i = 1; i <= 16; ++i) {
-                    std::string input = base + "/temp" + std::to_string(i) + "_input";
-                    if (!fs::exists(input)) continue;
+                // Enumerate channels instead of assuming a fixed highest index.
+                for (const auto& channel : fs::directory_iterator(base)) {
+                    const std::string filename = channel.path().filename().string();
+                    constexpr char prefix[] = "temp";
+                    constexpr char suffix[] = "_input";
+                    const size_t prefix_size = sizeof(prefix) - 1;
+                    const size_t suffix_size = sizeof(suffix) - 1;
+                    if (filename.size() <= prefix_size + suffix_size ||
+                        filename.compare(0, prefix_size, prefix) != 0 ||
+                        filename.compare(filename.size() - suffix_size, suffix_size, suffix) != 0) {
+                        continue;
+                    }
+                    const auto channel_number_begin = filename.begin() + static_cast<std::ptrdiff_t>(prefix_size);
+                    const auto channel_number_end = filename.end() - static_cast<std::ptrdiff_t>(suffix_size);
+                    if (!std::all_of(channel_number_begin, channel_number_end,
+                                     [](unsigned char ch) { return std::isdigit(ch) != 0; })) {
+                        continue;
+                    }
 
                     Sensor s;
-                    s.temp_input_path = input;
-                    s.label_path = base + "/temp" + std::to_string(i) + "_label";
+                    s.temp_input_path = channel.path().string();
+                    s.label_path = base + "/" + filename.substr(0, filename.size() - suffix_size) + "_label";
                     s.name = name;
 
                     if (looksLikeCpuSensor(s)) {

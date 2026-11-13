@@ -226,6 +226,18 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK(*result == 61);
     }
 
+    TEST_CASE("finds hwmon temperature channels above index 16") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp17_input", "62000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK(monitor.readCpuTempC() == 62);
+    }
+
     TEST_CASE("preserves sub-zero sensor readings") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
