@@ -70,6 +70,20 @@ TEST_SUITE("CPU Load Calculation") {
         CHECK_FALSE(empty.initialize());
     }
 
+    TEST_CASE("retries CPU initialization when proc stat becomes available") {
+        CpuStatFile snapshot;
+        REQUIRE(snapshot.valid());
+        hwmon::CpuMonitor monitor(snapshot.path());
+        CHECK_FALSE(monitor.initialize());
+
+        REQUIRE(snapshot.write("cpu 100 0 20 300\ncpu0 50 0 10 150\n"));
+        uint8_t overall = 0;
+        std::vector<uint8_t> per_core;
+        REQUIRE(monitor.getLoads(overall, per_core));
+        CHECK(monitor.getCoreCount() == 1);
+        CHECK(per_core.size() == 1);
+    }
+
     TEST_CASE("CPU topology changes rebase once and resize synthetic core loads") {
         CpuStatFile snapshot;
         REQUIRE(snapshot.valid());
