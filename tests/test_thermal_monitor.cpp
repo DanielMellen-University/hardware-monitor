@@ -126,6 +126,19 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK_FALSE(monitor.readCpuTempC().has_value());
     }
 
+    TEST_CASE("skips a malformed CPU channel when another channel is readable") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "invalid\n");
+        writeFile(hwmon / "hwmon0" / "temp2_input", "54000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK(monitor.readCpuTempC() == 54);
+    }
+
     TEST_CASE("sensor scans tolerate an invalid or disappearing root") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
