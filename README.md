@@ -81,7 +81,7 @@ cmake --build build -j$(nproc)
 (cd build && ctest --output-on-failure)
 ```
 
-CTest lists and runs each test case once. To run the complete suite directly, use `build/tests/hwmon_tests`.
+Serial tests use pseudo-terminals, and CPU, thermal, and FPS tests use temporary files. The suite does not open a real serial device. CTest lists and runs each test case once. To run the complete suite directly, use `build/tests/hwmon_tests`.
 
 ## Running Manually
 
