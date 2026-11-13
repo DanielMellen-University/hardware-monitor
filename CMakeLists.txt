@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Enable useful warnings
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -Werror=return-type)
+    add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
 # Main executable
