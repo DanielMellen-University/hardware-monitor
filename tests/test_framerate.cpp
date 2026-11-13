@@ -138,6 +138,18 @@ TEST_SUITE("Framerate Provider") {
         CHECK(provider.getFps() == 0);
     }
 
+    TEST_CASE("integer overflow uses the zero fallback") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path fps_file = temp.path() / "current_fps";
+        writeFile(fps_file, "90");
+        hwmon::FramerateProvider provider(fps_file.string());
+        REQUIRE(waitForFps(provider, 90));
+
+        writeFile(fps_file, "999999999999999999999999999999999999");
+        CHECK(waitForFps(provider, 0));
+    }
+
     TEST_CASE("empty and whitespace-only contents use the zero fallback") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
