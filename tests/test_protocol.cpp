@@ -114,6 +114,16 @@ TEST_SUITE("Protocol Packet Builder") {
         CHECK(pkt.back() == expected_xor);
     }
 
+    TEST_CASE("matches a complete golden packet vector") {
+        const auto packet = buildPacket(3, {1, 2}, -4, 0x1234, 5, -6, 7);
+        const std::vector<uint8_t> expected{
+            0xAA, 0x55, 0x01, 0x02, 0x03, 0x01, 0x02,
+            0xFC, 0x34, 0x12, 0x05, 0xFA, 0x07, 0xDE
+        };
+
+        CHECK(packet == expected);
+    }
+
     TEST_CASE("different core counts produce valid packets") {
         for (int n = 1; n <= 32; ++n) {
             std::vector<uint8_t> cores(n, 42);
