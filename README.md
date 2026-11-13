@@ -9,7 +9,7 @@ Lightweight C++ daemon that streams real-time hardware statistics over a serial 
 - GPU clock (MHz), utilization (%), temperature (°C) — NVIDIA primary (via NVML + nvidia-smi fallback)
 - Framerate (FPS) — updated live from a text file (easy integration with games/scripts)
 - Compact binary protocol (easy to parse on microcontrollers)
-- Pure C++17, minimal dependencies (uses POSIX + dlopen for optional NVIDIA)
+- Pure C++20, minimal dependencies (uses POSIX + dlopen for optional NVIDIA)
 - Proper signal handling + systemd integration
 
 ## Packet Protocol (v1)
