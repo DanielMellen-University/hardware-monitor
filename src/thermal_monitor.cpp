@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <cctype>
 #include <iostream>
 #include <utility>
 
@@ -69,6 +70,8 @@ void ThermalMonitor::scanSensors() {
                     std::string type;
                     std::ifstream tf(type_path);
                     if (tf) std::getline(tf, type);
+                    std::transform(type.begin(), type.end(), type.begin(),
+                                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
 
                     // Common CPU-related types
                     if (type.find("cpu") != std::string::npos ||

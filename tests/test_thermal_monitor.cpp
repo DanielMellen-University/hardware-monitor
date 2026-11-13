@@ -80,6 +80,18 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK(*result == 51);
     }
 
+    TEST_CASE("matches CPU thermal zone type names without case sensitivity") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(thermal / "thermal_zone0" / "type", "X86_PKG_TEMP\n");
+        writeFile(thermal / "thermal_zone0" / "temp", "55000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK(monitor.readCpuTempC() == 55);
+    }
+
     TEST_CASE("uses a CPU label when a generic hwmon name is present") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
