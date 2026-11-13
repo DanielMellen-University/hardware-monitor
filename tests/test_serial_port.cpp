@@ -89,6 +89,41 @@ TEST_CASE("configures and writes bytes through a pseudo-terminal") {
     CHECK(cfgetospeed(&settings) == B115200);
 }
 
+TEST_CASE("reopening routes writes only to the new pseudo-terminal") {
+    int first_master = -1;
+    int first_slave = -1;
+    char first_name[128] = {};
+    REQUIRE(openpty(&first_master, &first_slave, first_name, nullptr, nullptr) == 0);
+    FileDescriptor first_master_fd(first_master);
+    FileDescriptor first_slave_fd(first_slave);
+    first_slave_fd.reset();
+
+    int second_master = -1;
+    int second_slave = -1;
+    char second_name[128] = {};
+    REQUIRE(openpty(&second_master, &second_slave, second_name, nullptr, nullptr) == 0);
+    FileDescriptor second_master_fd(second_master);
+    FileDescriptor second_slave_fd(second_slave);
+    second_slave_fd.reset();
+
+    hwmon::SerialPort serial;
+    REQUIRE(serial.open(first_name, 115200));
+    REQUIRE(serial.open(second_name, 115200));
+    const std::vector<uint8_t> bytes{0x12, 0x34};
+    REQUIRE(serial.write(bytes) == static_cast<ssize_t>(bytes.size()));
+
+    pollfd first_event{first_master_fd.get(), POLLIN, 0};
+    CHECK(poll(&first_event, 1, 100) >= 0);
+    CHECK((first_event.revents & POLLIN) == 0);
+    pollfd second_event{second_master_fd.get(), POLLIN, 0};
+    REQUIRE(poll(&second_event, 1, 1000) == 1);
+    std::array<uint8_t, 2> received{};
+    REQUIRE(::read(second_master_fd.get(), received.data(), received.size()) ==
+            static_cast<ssize_t>(received.size()));
+    const std::array<uint8_t, 2> expected{0x12, 0x34};
+    CHECK(received == expected);
+}
+
 TEST_CASE("configuration failure preserves its cause and closes the device") {
     char path[] = "/tmp/hwmon-serial-regular-file-XXXXXX";
     FileDescriptor file_fd(::mkstemp(path));
