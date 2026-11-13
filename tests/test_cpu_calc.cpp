@@ -112,6 +112,23 @@ TEST_SUITE("CPU Load Calculation") {
         CHECK(per_core == std::vector<uint8_t>{25, 21, 50});
     }
 
+    TEST_CASE("CPU topology shrink rebases and resizes synthetic core loads") {
+        CpuStatFile snapshot;
+        REQUIRE(snapshot.valid());
+        REQUIRE(snapshot.write("cpu 100 0 20 300\ncpu0 50 0 10 150\ncpu1 50 0 10 150\ncpu2 0 0 0 0\n"));
+        hwmon::CpuMonitor monitor(snapshot.path());
+        REQUIRE(monitor.initialize());
+        REQUIRE(monitor.getCoreCount() == 3);
+
+        REQUIRE(snapshot.write("cpu 110 0 22 330\ncpu0 54 0 11 165\ncpu1 53 0 11 165\n"));
+        uint8_t overall = 99;
+        std::vector<uint8_t> per_core;
+        REQUIRE(monitor.getLoads(overall, per_core));
+        CHECK(overall == 0);
+        CHECK(monitor.getCoreCount() == 2);
+        CHECK(per_core == std::vector<uint8_t>{0, 0});
+    }
+
     TEST_CASE("rejects aggregate-only samples without losing the established core count") {
         CpuStatFile snapshot;
         REQUIRE(snapshot.valid());
