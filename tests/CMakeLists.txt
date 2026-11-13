@@ -49,4 +49,7 @@ target_sources(hwmon_tests
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
 doctest_discover_tests(hwmon_tests)
 
+add_test(NAME daemon_help COMMAND $<TARGET_FILE:hwmon-daemon> --help)
+set_tests_properties(daemon_help PROPERTIES PASS_REGULAR_EXPRESSION "Usage: .*\\[options\\]")
+
 # CTest registers each doctest case; running hwmon_tests directly executes the suite once.
