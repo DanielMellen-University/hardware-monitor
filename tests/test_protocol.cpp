@@ -60,6 +60,20 @@ TEST_SUITE("Protocol Packet Builder") {
         CHECK_THROWS_AS(buildPacket(0, cores, 0, 0, 0, 0, 0), std::length_error);
     }
 
+    TEST_CASE("supports the maximum 255 per-core values") {
+        const std::vector<uint8_t> cores(255, 42);
+        const auto packet = buildPacket(50, cores, 40, 1000, 30, 45, 60);
+
+        REQUIRE(packet.size() == 12 + 255);
+        CHECK(packet[3] == 255);
+        CHECK(packet[4] == 50);
+        CHECK(packet[5] == 42);
+        CHECK(packet[259] == 42);
+        uint8_t checksum = 0;
+        for (size_t i = 0; i + 1 < packet.size(); ++i) checksum ^= packet[i];
+        CHECK(packet.back() == checksum);
+    }
+
     TEST_CASE("all scalar fields are placed correctly") {
         std::vector<uint8_t> per_core = {99};
         auto pkt = buildPacket(88, per_core, -12, 0xABCD, 66, -5, 77);
@@ -98,6 +112,16 @@ TEST_SUITE("Protocol Packet Builder") {
         }
 
         CHECK(pkt.back() == expected_xor);
+    }
+
+    TEST_CASE("matches a complete golden packet vector") {
+        const auto packet = buildPacket(3, {1, 2}, -4, 0x1234, 5, -6, 7);
+        const std::vector<uint8_t> expected{
+            0xAA, 0x55, 0x01, 0x02, 0x03, 0x01, 0x02,
+            0xFC, 0x34, 0x12, 0x05, 0xFA, 0x07, 0xDE
+        };
+
+        CHECK(packet == expected);
     }
 
     TEST_CASE("different core counts produce valid packets") {

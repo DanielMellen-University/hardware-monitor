@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
+#include <cctype>
 #include <iostream>
 #include <utility>
 
@@ -15,73 +16,97 @@ ThermalMonitor::ThermalMonitor(std::string hwmon_root, std::string thermal_root)
 
 void ThermalMonitor::scanSensors() {
     if (scanned_) return;
-    scanned_ = true;
     cpu_sensors_.clear();
+    bool scan_complete = true;
 
-    try {
     // 1. hwmon sensors (preferred)
-    if (fs::exists(hwmon_root_)) {
-        for (const auto& entry : fs::directory_iterator(hwmon_root_)) {
-            if (!entry.is_directory()) continue;
+    try {
+        if (fs::exists(hwmon_root_)) {
+            for (const auto& entry : fs::directory_iterator(hwmon_root_)) {
+                if (!entry.is_directory()) continue;
 
-            std::string base = entry.path().string();
+                std::string base = entry.path().string();
 
-            // Read name
-            std::string name;
-            std::ifstream namef(base + "/name");
-            if (namef) std::getline(namef, name);
+                // Read name
+                std::string name;
+                std::ifstream namef(base + "/name");
+                if (namef) std::getline(namef, name);
 
-            // Look for temp*_input files
-            for (int i = 1; i <= 16; ++i) {
-                std::string input = base + "/temp" + std::to_string(i) + "_input";
-                if (!fs::exists(input)) continue;
+                // Enumerate channels instead of assuming a fixed highest index.
+                for (const auto& channel : fs::directory_iterator(base)) {
+                    const std::string filename = channel.path().filename().string();
+                    constexpr char prefix[] = "temp";
+                    constexpr char suffix[] = "_input";
+                    const size_t prefix_size = sizeof(prefix) - 1;
+                    const size_t suffix_size = sizeof(suffix) - 1;
+                    if (filename.size() <= prefix_size + suffix_size ||
+                        filename.compare(0, prefix_size, prefix) != 0 ||
+                        filename.compare(filename.size() - suffix_size, suffix_size, suffix) != 0) {
+                        continue;
+                    }
+                    const auto channel_number_begin = filename.begin() + static_cast<std::ptrdiff_t>(prefix_size);
+                    const auto channel_number_end = filename.end() - static_cast<std::ptrdiff_t>(suffix_size);
+                    if (!std::all_of(channel_number_begin, channel_number_end,
+                                     [](unsigned char ch) { return std::isdigit(ch) != 0; })) {
+                        continue;
+                    }
 
-                Sensor s;
-                s.temp_input_path = input;
-                s.label_path = base + "/temp" + std::to_string(i) + "_label";
-                s.name = name;
+                    Sensor s;
+                    s.temp_input_path = channel.path().string();
+                    s.label_path = base + "/" + filename.substr(0, filename.size() - suffix_size) + "_label";
+                    s.name = name;
 
-                if (looksLikeCpuSensor(s)) {
-                    cpu_sensors_.push_back(s);
+                    if (looksLikeCpuSensor(s)) {
+                        cpu_sensors_.push_back(s);
+                    }
                 }
             }
         }
+    } catch (const fs::filesystem_error&) {
+        // Keep searching the fallback source and retry discovery on the next read.
+        scan_complete = false;
     }
 
     // 2. Thermal zones fallback
-    if (fs::exists(thermal_root_) && cpu_sensors_.empty()) {
-        for (const auto& entry : fs::directory_iterator(thermal_root_)) {
-            if (!entry.is_directory()) continue;
-            std::string dir = entry.path().string();
-            if (dir.find("thermal_zone") == std::string::npos) continue;
+    if (cpu_sensors_.empty()) {
+        try {
+            if (fs::exists(thermal_root_)) {
+                for (const auto& entry : fs::directory_iterator(thermal_root_)) {
+                    if (!entry.is_directory()) continue;
+                    std::string dir = entry.path().string();
+                    if (dir.find("thermal_zone") == std::string::npos) continue;
 
-            std::string type_path = dir + "/type";
-            std::string temp_path = dir + "/temp";
+                    std::string type_path = dir + "/type";
+                    std::string temp_path = dir + "/temp";
 
-            if (!fs::exists(temp_path)) continue;
+                    if (!fs::exists(temp_path)) continue;
 
-            std::string type;
-            std::ifstream tf(type_path);
-            if (tf) std::getline(tf, type);
+                    std::string type;
+                    std::ifstream tf(type_path);
+                    if (tf) std::getline(tf, type);
+                    std::transform(type.begin(), type.end(), type.begin(),
+                                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
 
-            // Common CPU-related types
-            if (type.find("cpu") != std::string::npos ||
-                type.find("x86_pkg") != std::string::npos ||
-                type.find("acpitz") != std::string::npos ||
-                type.find("coretemp") != std::string::npos) {
+                    // Common CPU-related types
+                    if (type.find("cpu") != std::string::npos ||
+                        type.find("x86_pkg") != std::string::npos ||
+                        type.find("acpitz") != std::string::npos ||
+                        type.find("coretemp") != std::string::npos) {
 
-                Sensor s;
-                s.temp_input_path = temp_path;
-                s.name = type;
-                cpu_sensors_.push_back(s);
+                        Sensor s;
+                        s.temp_input_path = temp_path;
+                        s.name = type;
+                        cpu_sensors_.push_back(s);
+                    }
+                }
             }
+        } catch (const fs::filesystem_error&) {
+            // Retain any fallback candidates found so far and retry next time.
+            scan_complete = false;
         }
     }
 
-    } catch (const fs::filesystem_error&) {
-        // sysfs entries can disappear between enumeration and inspection.
-        // Keep any candidates already discovered; individual reads are retried later.
-    }
+    scanned_ = scan_complete;
 }
 
 bool ThermalMonitor::looksLikeCpuSensor(const Sensor& s) {

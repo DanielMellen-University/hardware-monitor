@@ -10,6 +10,7 @@
 
 #include <array>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -87,6 +88,66 @@ TEST_CASE("configures and writes bytes through a pseudo-terminal") {
     CHECK((settings.c_cflag & PARENB) == 0);
     CHECK((settings.c_cflag & CSTOPB) == 0);
     CHECK(cfgetospeed(&settings) == B115200);
+}
+
+TEST_CASE("reopening routes writes only to the new pseudo-terminal") {
+    int first_master = -1;
+    int first_slave = -1;
+    char first_name[128] = {};
+    REQUIRE(openpty(&first_master, &first_slave, first_name, nullptr, nullptr) == 0);
+    FileDescriptor first_master_fd(first_master);
+    FileDescriptor first_slave_fd(first_slave);
+    first_slave_fd.reset();
+
+    int second_master = -1;
+    int second_slave = -1;
+    char second_name[128] = {};
+    REQUIRE(openpty(&second_master, &second_slave, second_name, nullptr, nullptr) == 0);
+    FileDescriptor second_master_fd(second_master);
+    FileDescriptor second_slave_fd(second_slave);
+    second_slave_fd.reset();
+
+    hwmon::SerialPort serial;
+    REQUIRE(serial.open(first_name, 115200));
+    REQUIRE(serial.open(second_name, 115200));
+    const std::vector<uint8_t> bytes{0x12, 0x34};
+    REQUIRE(serial.write(bytes) == static_cast<ssize_t>(bytes.size()));
+
+    pollfd first_event{first_master_fd.get(), POLLIN, 0};
+    CHECK(poll(&first_event, 1, 100) >= 0);
+    CHECK((first_event.revents & POLLIN) == 0);
+    pollfd second_event{second_master_fd.get(), POLLIN, 0};
+    REQUIRE(poll(&second_event, 1, 1000) == 1);
+    std::array<uint8_t, 2> received{};
+    REQUIRE(::read(second_master_fd.get(), received.data(), received.size()) ==
+            static_cast<ssize_t>(received.size()));
+    const std::array<uint8_t, 2> expected{0x12, 0x34};
+    CHECK(received == expected);
+}
+
+TEST_CASE("configures every advertised baud rate on a pseudo-terminal") {
+    int master = -1;
+    int slave = -1;
+    char slave_name[128] = {};
+    REQUIRE(openpty(&master, &slave, slave_name, nullptr, nullptr) == 0);
+    FileDescriptor master_fd(master);
+    FileDescriptor original_slave_fd(slave);
+    original_slave_fd.reset();
+
+    const std::pair<int, speed_t> rates[] = {
+        {9600, B9600}, {19200, B19200}, {38400, B38400}, {57600, B57600},
+        {115200, B115200}, {230400, B230400}, {460800, B460800}, {921600, B921600}
+    };
+    hwmon::SerialPort serial;
+    FileDescriptor inspection_fd(::open(slave_name, O_RDWR | O_NOCTTY));
+    REQUIRE(inspection_fd.get() >= 0);
+
+    for (const auto& rate : rates) {
+        REQUIRE(serial.open(slave_name, rate.first));
+        termios settings{};
+        REQUIRE(tcgetattr(inspection_fd.get(), &settings) == 0);
+        CHECK(cfgetospeed(&settings) == rate.second);
+    }
 }
 
 TEST_CASE("configuration failure preserves its cause and closes the device") {

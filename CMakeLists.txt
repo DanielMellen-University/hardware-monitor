@@ -5,13 +5,13 @@ project(hardware-monitor-daemon
     LANGUAGES CXX
 )
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Enable useful warnings
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -Werror=return-type)
+    add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
 
 # Main executable

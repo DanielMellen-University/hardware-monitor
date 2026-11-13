@@ -53,6 +53,19 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK(*result == 42);
     }
 
+    TEST_CASE("reports the hottest reading among CPU sensors") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "42000\n");
+        writeFile(hwmon / "hwmon0" / "temp2_input", "67000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK(monitor.readCpuTempC() == 67);
+    }
+
     TEST_CASE("uses a CPU thermal zone when no hwmon CPU sensor exists") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
@@ -65,6 +78,18 @@ TEST_SUITE("Thermal monitor discovery") {
         const auto result = monitor.readCpuTempC();
         REQUIRE(result.has_value());
         CHECK(*result == 51);
+    }
+
+    TEST_CASE("matches CPU thermal zone type names without case sensitivity") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(thermal / "thermal_zone0" / "type", "X86_PKG_TEMP\n");
+        writeFile(thermal / "thermal_zone0" / "temp", "55000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK(monitor.readCpuTempC() == 55);
     }
 
     TEST_CASE("uses a CPU label when a generic hwmon name is present") {
@@ -113,6 +138,19 @@ TEST_SUITE("Thermal monitor discovery") {
         CHECK_FALSE(monitor.readCpuTempC().has_value());
     }
 
+    TEST_CASE("skips a malformed CPU channel when another channel is readable") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "invalid\n");
+        writeFile(hwmon / "hwmon0" / "temp2_input", "54000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK(monitor.readCpuTempC() == 54);
+    }
+
     TEST_CASE("sensor scans tolerate an invalid or disappearing root") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
@@ -122,6 +160,39 @@ TEST_SUITE("Thermal monitor discovery") {
 
         hwmon::ThermalMonitor monitor(invalid_root.string(), thermal.string());
         CHECK_FALSE(monitor.readCpuTempC().has_value());
+    }
+
+    TEST_CASE("falls back to a thermal zone when the hwmon root is not a directory") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon_file = temp.path() / "hwmon-file";
+        writeFile(hwmon_file, "not a directory");
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(thermal / "thermal_zone0" / "type", "x86_pkg_temp\n");
+        writeFile(thermal / "thermal_zone0" / "temp", "51000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon_file.string(), thermal.string());
+        const auto result = monitor.readCpuTempC();
+        REQUIRE(result.has_value());
+        CHECK(*result == 51);
+    }
+
+    TEST_CASE("retries an incomplete scan when hwmon becomes available") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        writeFile(hwmon, "not a directory");
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(thermal / "thermal_zone0" / "type", "x86_pkg_temp\n");
+        writeFile(thermal / "thermal_zone0" / "temp", "51000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        REQUIRE(monitor.readCpuTempC() == 51);
+
+        fs::remove(hwmon);
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp1_input", "63000\n");
+        CHECK(monitor.readCpuTempC() == 63);
     }
 
     TEST_CASE("clamps readings to signed protocol temperature limits") {
@@ -153,6 +224,18 @@ TEST_SUITE("Thermal monitor discovery") {
         const auto result = monitor.readCpuTempC();
         REQUIRE(result.has_value());
         CHECK(*result == 61);
+    }
+
+    TEST_CASE("finds hwmon temperature channels above index 16") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path hwmon = temp.path() / "hwmon";
+        const fs::path thermal = temp.path() / "thermal";
+        writeFile(hwmon / "hwmon0" / "name", "coretemp\n");
+        writeFile(hwmon / "hwmon0" / "temp17_input", "62000\n");
+
+        hwmon::ThermalMonitor monitor(hwmon.string(), thermal.string());
+        CHECK(monitor.readCpuTempC() == 62);
     }
 
     TEST_CASE("preserves sub-zero sensor readings") {

@@ -78,6 +78,12 @@ bool CpuMonitor::getLoads(uint8_t& overall, std::vector<uint8_t>& per_core) {
         return false;
     }
 
+    // A usable snapshot always has the aggregate row and at least one core.
+    // Do not let an incomplete sample trigger a topology rebase.
+    if (curr_times.size() < 2) {
+        return false;
+    }
+
     if (curr_times.size() != prev_per_core_.size() + 1) {
         // Rebase counters on the new topology. Loads are undefined for this
         // transition sample, so report zero and calculate deltas next time.
@@ -118,10 +124,16 @@ bool CpuMonitor::readProcStat(std::vector<CpuTimes>& out_times, uint8_t& /*overa
             break; // cpu lines are first
         }
 
-        CpuTimes t{};
-        if (parse_cpu_stat_line(line, t)) {
-            out_times.push_back(t);
+        std::istringstream label_stream(line);
+        std::string cpu_label;
+        if (!(label_stream >> cpu_label) ||
+            (out_times.empty() ? cpu_label != "cpu" : cpu_label == "cpu")) {
+            return false;
         }
+
+        CpuTimes t{};
+        if (!parse_cpu_stat_line(line, t)) return false;
+        out_times.push_back(t);
     }
 
     return !out_times.empty();

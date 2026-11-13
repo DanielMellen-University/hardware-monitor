@@ -76,6 +76,16 @@ TEST_SUITE("Framerate Provider") {
 
     }
 
+    TEST_CASE("accepts a leading plus sign and surrounding whitespace") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path fps_file = temp.path() / "current_fps";
+        writeFile(fps_file, "  \t+144 \n");
+
+        hwmon::FramerateProvider provider(fps_file.string());
+        CHECK(waitForFps(provider, 144));
+    }
+
     TEST_CASE("clamps out-of-range values") {
         TempDirectory temp;
         REQUIRE_FALSE(temp.path().empty());
@@ -126,6 +136,18 @@ TEST_SUITE("Framerate Provider") {
         hwmon::FramerateProvider provider(fps_file.string());
         std::this_thread::sleep_for(std::chrono::milliseconds(600));
         CHECK(provider.getFps() == 0);
+    }
+
+    TEST_CASE("integer overflow uses the zero fallback") {
+        TempDirectory temp;
+        REQUIRE_FALSE(temp.path().empty());
+        const fs::path fps_file = temp.path() / "current_fps";
+        writeFile(fps_file, "90");
+        hwmon::FramerateProvider provider(fps_file.string());
+        REQUIRE(waitForFps(provider, 90));
+
+        writeFile(fps_file, "999999999999999999999999999999999999");
+        CHECK(waitForFps(provider, 0));
     }
 
     TEST_CASE("empty and whitespace-only contents use the zero fallback") {
